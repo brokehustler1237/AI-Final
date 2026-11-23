@@ -1,7 +1,7 @@
 # AI Usage Declaration
 
 **Course:** AI Fundamentals (AIF1303) · **Assignment:** Final Project, *Mini Food Delivery Assistant*
-**Student:** Insar *(add full name and student ID)*
+**Student:** Insar 
 
 | Field | Declaration |
 |---|---|
