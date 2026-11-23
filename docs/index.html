@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Food Delivery Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: the map is the stage on the left, the three algorithm cards stack on the right, evaluation runs full width below. */
+  --bg: #EDF1F4;
+  --surface: #FFFFFF;
+  --surface-2: #F4F7F9;
+  --ink: #13202E;
+  --muted: #5A6A7B;
+  --line: #D6DEE6;
+  --accent: #E4533A;
+  --accent-tint: #FBE3DC;
+  --detour: #2563EB;
+  --detour-tint: #DCE7FD;
+  --alert: #D98A06;
+  --alert-tint: #FDF0D5;
+  --good: #1E8E61;
+  --good-tint: #DAF1E7;
+  --road: #F8FAFB;
+  --explored: #FCEBE5;
+  --wall-bg: #CBD4DC;
+  --wall-line: #B1BDC8;
+  --on-accent: #FFFFFF;
+  --bad: #C93A3A;
+  --water: #CFE3F5;
+  --wave: #8DB6DD;
+  --bad-tint: #F9DEDE;
+  --trail: #13202E;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151C; --surface: #151F29; --surface-2: #1B2733; --ink: #E5ECF2; --muted: #93A3B3; --line: #2A3846;
+    --accent: #FF7A5C; --accent-tint: #3A231D; --detour: #74A0FF; --detour-tint: #1C2945;
+    --alert: #F5B43C; --alert-tint: #3A2E14; --good: #3CC48A; --good-tint: #15302A;
+    --road: #1A2530; --explored: #34241F; --wall-bg: #2C3946; --wall-line: #3E4D5C; --on-accent: #1A0E0A; --bad: #F06B6B; --bad-tint: #3B1C1E; --trail: #E5ECF2; --water: #16324A; --wave: #2F5F8A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151C; --surface: #151F29; --surface-2: #1B2733; --ink: #E5ECF2; --muted: #93A3B3; --line: #2A3846;
+  --accent: #FF7A5C; --accent-tint: #3A231D; --detour: #74A0FF; --detour-tint: #1C2945;
+  --alert: #F5B43C; --alert-tint: #3A2E14; --good: #3CC48A; --good-tint: #15302A;
+  --road: #1A2530; --explored: #34241F; --wall-bg: #2C3946; --wall-line: #3E4D5C; --on-accent: #1A0E0A; --bad: #F06B6B; --bad-tint: #3B1C1E; --trail: #E5ECF2; --water: #16324A; --wave: #2F5F8A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 24px 20px 40px; display: grid; gap: 18px; }
+
+header h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(26px, 3.4vw, 38px); letter-spacing: -0.015em; line-height: 1.1; margin: 0; text-wrap: balance; }
+.course { font: 600 12.5px var(--font-body); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.sub { color: var(--muted); margin: 8px 0 0; max-width: 72ch; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; font-size: 13.5px; }
+.flow .step { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+.flow .step b { font-family: var(--font-display); }
+.flow .arrow { color: var(--muted); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; justify-content: space-between; }
+.control-group { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.control-label { font: 600 12px var(--font-body); color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--surface-2); gap: 2px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.seg input:checked + label { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.10); }
+.seg input:focus-visible + label { outline: 2px solid var(--detour); outline-offset: 1px; }
+
+.btn { font: 600 14px var(--font-body); padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-width: 112px; }
+.btn:focus-visible { outline: 2px solid var(--detour); outline-offset: 2px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+.map-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+.map-head h2 { font: 700 18px var(--font-display); margin: 0; }
+.phases { display: flex; flex-wrap: wrap; gap: 6px; }
+.phase { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.phase.done { color: var(--ink); }
+.phase.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+
+#map { width: 100%; height: auto; display: block; margin: 6px auto 0; user-select: none; }
+#map text { pointer-events: none; }
+.cell { fill: var(--road); stroke: var(--line); stroke-width: 1; cursor: pointer; }
+.cell:hover { stroke: var(--muted); }
+.cell.explored { fill: var(--explored); }
+.cell.wall { fill: url(#hatch); stroke: var(--wall-line); }
+.cell.bridge-alert { fill: var(--alert-tint); stroke: var(--alert); stroke-width: 2.5; }
+.cell.bridge-clear { fill: var(--good-tint); stroke: var(--good); stroke-width: 2; }
+.cell.frontier { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; }
+.cell.current { stroke: var(--ink); stroke-width: 3; }
+.hatch-bg { fill: var(--wall-bg); }
+.hatch-line { stroke: var(--wall-line); }
+.axis { font: 500 12px var(--font-mono); fill: var(--muted); }
+.gh { font: 500 10px var(--font-mono); fill: var(--muted); }
+.fval { font: 600 11px var(--font-mono); fill: var(--ink); }
+.closed { font: 600 10px var(--font-body); fill: var(--ink); opacity: 0.7; letter-spacing: 0.04em; }
+.rail { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; opacity: 0.55; }
+.warn { fill: var(--alert); }
+.warn-mark { font: 700 11px var(--font-body); fill: var(--on-accent); }
+.route { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.route.faded { opacity: 0.28; }
+.detour { fill: none; stroke: var(--detour); stroke-width: 4.5; stroke-dasharray: 1 10; stroke-linecap: round; stroke-linejoin: round; }
+.detour.ghost { opacity: 0.45; }
+.detour.taken { stroke-dasharray: none; stroke-width: 6; }
+.icon-body { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.icon-fill { fill: var(--ink); }
+.icon-accent { fill: var(--accent); }
+.icon-label { font: 600 10px var(--font-body); fill: var(--ink); }
+.courier-ring { fill: var(--ink); }
+.courier-box { fill: var(--accent); }
+#courier { transition: transform 0.38s ease; }
+@media (prefers-reduced-motion: reduce) { #courier { transition: none; } }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); margin-top: 10px; justify-content: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 18px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid var(--line); }
+.sw.line { height: 0; border: 0; border-top: 4px solid var(--accent); border-radius: 2px; }
+.sw.dash { height: 0; border: 0; border-top: 4px dotted var(--detour); }
+
+.edit { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.edit .hint { font-size: 13px; color: var(--muted); }
+.notice { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--alert-tint); font-size: 14px; display: none; }
+.notice.show { display: block; }
+
+.strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile .v { font: 700 22px var(--font-display); font-variant-numeric: tabular-nums; line-height: 1.25; }
+.tile .s { font-size: 12.5px; color: var(--muted); }
+
+.pill { display: inline-block; font: 700 13px var(--font-body); letter-spacing: 0.05em; padding: 3px 10px; border-radius: 999px; }
+.pill.reroute { background: var(--detour-tint); color: var(--detour); }
+.pill.continue { background: var(--good-tint); color: var(--good); }
+.tile .pill { font-size: 15px; margin-top: 3px; }
+
+.algos { display: grid; gap: 14px; }
+.algo-head { display: flex; align-items: center; gap: 10px; }
+.algo-head h2 { font: 700 18px var(--font-display); margin: 0; }
+.algo-head .tag { margin-left: auto; font-size: 12.5px; color: var(--muted); text-align: right; }
+.num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--ink); color: var(--surface); font: 700 14px var(--font-display); flex: none; }
+.lbl { font: 600 11.5px var(--font-body); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 14px 0 5px; }
+.calc { font: 12.5px/1.65 var(--font-mono); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; overflow-x: auto; white-space: pre; margin: 0; }
+.out { font-size: 15px; font-weight: 500; }
+.out b { font-family: var(--font-display); }
+.why { font-size: 14px; border-left: 3px solid var(--accent); padding: 2px 0 2px 10px; margin-top: 12px; }
+.wait { display: none; font-size: 13px; color: var(--muted); margin-top: 8px; font-style: italic; }
+.pending .body { opacity: 0.32; filter: grayscale(0.7); }
+.pending .wait { display: block; }
+
+.trace-wrap { max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.trace { font: 12.5px var(--font-mono); }
+.trace th, .q th { position: sticky; top: 0; background: var(--surface); font: 600 11.5px var(--font-body); color: var(--muted); text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.trace td, .q td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+.trace th:nth-child(2), .trace td:nth-child(2), .q th:nth-child(-n+3), .q td:nth-child(-n+3) { text-align: left; }
+.trace tr.cur td { background: var(--accent-tint); font-weight: 600; }
+.trace tr.goal td { color: var(--accent); font-weight: 600; }
+.q { font: 12.5px var(--font-mono); }
+.q tr.win td { font-weight: 600; }
+.q td.qv { color: var(--ink); }
+
+.sliders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
+.sliders.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 560px) { .sliders, .sliders.two { grid-template-columns: 1fr; } }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.slider output { font: 600 13px var(--font-mono); color: var(--ink); }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 4px 0 0; }
+
+.bars { display: grid; gap: 8px; }
+.barrow { display: grid; grid-template-columns: 116px 1fr 62px; gap: 10px; align-items: center; font-size: 13px; }
+.barrow .val { font: 600 13px var(--font-mono); text-align: right; }
+.track { position: relative; height: 20px; background: var(--surface-2); border-radius: 6px; }
+.fill { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--muted); }
+.fill.post { background: var(--alert); }
+.fill.cont { background: var(--good); }
+.fill.rer { background: var(--detour); }
+.fill.dim { opacity: 0.4; }
+.fill.assist { background: var(--accent); }
+.tmark { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--detour); }
+.tnote { font-size: 12px; color: var(--detour); margin-left: 126px; }
+.zero { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--muted); }
+
+.eval-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.eval-head h2 { font: 700 18px var(--font-display); margin: 0; }
+.eval-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.eval-scroll { overflow-x: auto; margin-top: 12px; }
+.evaltab { min-width: 640px; font-size: 14px; }
+.evaltab th { font: 600 11.5px var(--font-body); color: var(--muted); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); letter-spacing: 0.03em; }
+.evaltab td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--font-mono); font-size: 13px; }
+.evaltab th:first-child, .evaltab td:first-child { text-align: left; font-family: var(--font-body); font-size: 14px; }
+.evaltab th:nth-child(2), .evaltab td:nth-child(2) { width: 34%; }
+.evaltab tr.best td:first-child { font-weight: 600; }
+.conclusion { margin: 12px 0 0; font-size: 15px; max-width: 80ch; }
+
+
+.controls { display: grid; gap: 14px; justify-content: stretch; }
+.controls .row { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.keys { font-size: 12.5px; color: var(--muted); }
+kbd { font: 600 11.5px var(--font-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; background: var(--surface-2); color: var(--ink); }
+.leftcol { display: grid; gap: 18px; min-width: 0; }
+.caption { display: grid; gap: 8px; padding: 16px 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--accent); min-height: 128px; align-content: start; }
+.caption .count { font: 600 12px var(--font-mono); color: var(--muted); white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase; }
+.caption .text { font-size: 17px; line-height: 1.5; }
+.caption.bad { border-left-color: var(--bad); }
+.caption.good { border-left-color: var(--good); }
+.cell.revealed-blocked { fill: var(--bad-tint); stroke: var(--bad); stroke-width: 2.5; }
+.cell.revealed-clear { fill: var(--good-tint); stroke: var(--good); stroke-width: 2.5; }
+.xmark { stroke: var(--bad); stroke-width: 5; stroke-linecap: round; }
+.check { fill: none; stroke: var(--good); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.trail { fill: none; stroke: var(--trail); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 0.1 7; }
+.bfsdot { fill: var(--detour); opacity: 0.85; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; margin-top: 10px; }
+.toggle input { accent-color: var(--detour); width: 16px; height: 16px; }
+.dmap svg { width: 100%; height: auto; display: block; }
+.dmap .c-rer { fill: var(--detour-tint); }
+.dmap .c-con { fill: var(--good-tint); }
+.dmap .tick { font: 500 11px var(--font-mono); fill: var(--muted); }
+.dmap .axl { font: 600 11.5px var(--font-body); fill: var(--muted); }
+.dmap .lab { font: 700 13px var(--font-display); }
+.dmap .lab.rer { fill: var(--detour); }
+.dmap .lab.con { fill: var(--good); }
+.dmap .me { fill: var(--accent); stroke: var(--surface); stroke-width: 2.5; }
+.dmap .me-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+.dmap .boundary { fill: none; stroke: var(--ink); stroke-width: 1.5; opacity: 0.55; }
+.dmap-note { font-size: 14px; margin: 10px 0 0; }
+.sw.trailsw { height: 0; border: 0; border-top: 3px dotted var(--trail); }
+.sw.bfssw { width: 8px; height: 8px; border-radius: 50%; background: var(--detour); border: 0; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1080px) { .stage { grid-template-columns: 1fr; } }
+.side { display: grid; gap: 18px; min-width: 0; }
+@media (min-width: 1081px) { .side { position: sticky; top: 16px; } }
+.algos3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@media (max-width: 1200px) { .algos3 { grid-template-columns: 1fr; } }
+.algos3 .sliders { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.map-card { padding: 18px 20px 20px; }
+.map-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 20px; }
+.map-top h2 { font: 800 22px var(--font-display); margin: 0; letter-spacing: -0.01em; }
+.clock { display: flex; gap: 18px; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.clock .t { font: 700 30px/1 var(--font-mono); letter-spacing: -0.02em; }
+.clock .k { font: 600 11px var(--font-body); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+.clock .eta .t { font-size: 20px; color: var(--muted); }
+.clock .eta.late .t { color: var(--bad); }
+.phases { margin-top: 10px; }
+.cell.water { fill: var(--water); stroke: var(--water); cursor: pointer; }
+.wave { fill: none; stroke: var(--wave); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+#map.big .gh { font-size: 12.5px; }
+#map.big .fval { font-size: 13px; }
+#map.big .closed { font-size: 11px; }
+.road { stroke: var(--line); stroke-width: 2; stroke-linecap: round; opacity: 0.75; }
+.courier-halo { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.scooter { fill: var(--ink); }
+.bag { fill: var(--accent); stroke: var(--ink); stroke-width: 1.5; }
+.rider { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.bar { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+#courier { transition: transform 0.3s ease-in-out; }
+#courier-body { transform-box: fill-box; transform-origin: center; transition: transform 0.25s ease; }
+.ping { fill: none; stroke: var(--alert); stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: ping 1.2s ease-out infinite; }
+.ping.bad { stroke: var(--bad); }
+@keyframes ping { from { transform: scale(0.4); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.burst { fill: none; stroke: var(--good); stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: burst 1.4s ease-out 2; }
+@keyframes burst { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+.badge-bg { fill: var(--good); }
+.badge-tx { font: 700 12px var(--font-body); fill: var(--on-accent); letter-spacing: 0.04em; }
+@media (prefers-reduced-motion: reduce) { #courier, #courier-body { transition: none; } .ping, .burst { animation: none; } }
+
+.shift-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 18px; }
+.shift-head h2 { font: 700 20px var(--font-display); margin: 0; }
+.shift-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.shift-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 18px; margin-top: 16px; align-items: start; }
+@media (max-width: 900px) { .shift-body { grid-template-columns: 1fr; } }
+.shift-chart svg { width: 100%; height: auto; display: block; }
+.shift-chart .grid { stroke: var(--line); }
+.shift-chart .tick { font: 500 11px var(--font-mono); fill: var(--muted); }
+.shift-chart .axl { font: 600 11.5px var(--font-body); fill: var(--muted); }
+.shift-chart .exp { stroke-width: 1.5; stroke-dasharray: 5 5; opacity: 0.8; }
+.shift-chart .run { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
+.shift-chart .lab { font: 600 12px var(--font-body); }
+.k-cont { stroke: var(--good); fill: var(--good); }
+.k-rer { stroke: var(--detour); fill: var(--detour); }
+.k-ast { stroke: var(--accent); fill: var(--accent); }
+.board { display: grid; gap: 10px; }
+.brow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border-left: 5px solid var(--muted); }
+.brow.cont { border-left-color: var(--good); }
+.brow.rer { border-left-color: var(--detour); }
+.brow.ast { border-left-color: var(--accent); }
+.brow.win { outline: 2px solid var(--accent); outline-offset: 1px; }
+.brow .name { font-weight: 600; }
+.brow .big { font: 700 24px var(--font-display); font-variant-numeric: tabular-nums; text-align: right; grid-row: span 2; align-self: center; }
+.brow .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.counter { font: 600 13px var(--font-mono); color: var(--muted); }
+.ribbon-wrap { margin-top: 16px; }
+.ribbon { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; min-height: 14px; }
+.ribbon i { width: 11px; height: 14px; border-radius: 3px; display: block; }
+.ribbon i.over { background: var(--good); }
+.ribbon i.det { background: var(--detour); }
+.ribbon i.stk { background: var(--bad); }
+.ribbon i.alert { box-shadow: inset 0 3px 0 var(--alert); }
+.rlegend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.rlegend span { display: inline-flex; align-items: center; gap: 6px; }
+.rlegend i { width: 11px; height: 14px; border-radius: 3px; display: inline-block; }
+.shift-note { margin: 14px 0 0; font-size: 15px; max-width: 90ch; }
+
+footer { font-size: 13px; color: var(--muted); max-width: 90ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="course">AI Fundamentals · Final Project · Topic 20</div>
+  <h1>Mini Food Delivery Assistant</h1>
+  <p class="sub">A courier is taking an order from the restaurant to a customer across the city: the 6×6 neighbourhood from the project brief, or a larger 10×10 or 14×14 map with a river and several bridges. The traffic service reports on the bridge along the route, before departure or while the courier is already driving. Three algorithms decide what the courier should do, and then you see what really happened on the road.</p>
+  <div class="flow" aria-label="How the three algorithms connect">
+    <span class="step"><b>A*</b> finds the route and the detour</span><span class="arrow">→</span>
+    <span class="step"><b>Bayes</b> estimates if the bridge is blocked</span><span class="arrow">→</span>
+    <span class="step"><b>MDP</b> chooses continue or reroute</span>
+  </div>
+</header>
+
+<section class="card controls" aria-label="Controls">
+  <div class="row">
+    <div class="control-group">
+      <span class="control-label" id="size-label">Map</span>
+      <div class="seg" role="radiogroup" aria-labelledby="size-label">
+        <input type="radio" name="size" id="size-6" value="6x6" checked><label for="size-6">6×6</label>
+        <input type="radio" name="size" id="size-10" value="10x10"><label for="size-10">10×10</label>
+        <input type="radio" name="size" id="size-14" value="14x14"><label for="size-14">14×14</label>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="obs-label">Traffic report</span>
+      <div class="seg" role="radiogroup" aria-labelledby="obs-label">
+        <input type="radio" name="obs" id="obs-alert" value="ALERT" checked><label for="obs-alert">Alert on the bridge</label>
+        <input type="radio" name="obs" id="obs-quiet" value="NO ALERT"><label for="obs-quiet">No alert</label>
+        <input type="radio" name="obs" id="obs-none" value="NONE"><label for="obs-none">No report</label>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="timing-label">Report arrives</span>
+      <div class="seg" role="radiogroup" aria-labelledby="timing-label">
+        <input type="radio" name="timing" id="timing-depart" value="depart" checked><label for="timing-depart">Before departure</label>
+        <input type="radio" name="timing" id="timing-way" value="way"><label for="timing-way">On the way</label>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="truth-label">Bridge really is</span>
+      <div class="seg" role="radiogroup" aria-labelledby="truth-label">
+        <input type="radio" name="truth" id="truth-random" value="random" checked><label for="truth-random">Random</label>
+        <input type="radio" name="truth" id="truth-blocked" value="blocked"><label for="truth-blocked">Blocked</label>
+        <input type="radio" name="truth" id="truth-clear" value="clear"><label for="truth-clear">Clear</label>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="control-group">
+      <button class="btn primary" id="play" type="button">Play demo</button>
+      <button class="btn" id="step" type="button">Next step</button>
+      <button class="btn" id="skip" type="button">Show result</button>
+      <span class="control-label" id="speed-label">Speed</span>
+      <div class="seg" role="radiogroup" aria-labelledby="speed-label">
+        <input type="radio" name="speed" id="speed-slow" value="0.5"><label for="speed-slow">0.5×</label>
+        <input type="radio" name="speed" id="speed-normal" value="1" checked><label for="speed-normal">1×</label>
+        <input type="radio" name="speed" id="speed-fast" value="2"><label for="speed-fast">2×</label>
+      </div>
+    </div>
+    <span class="keys"><kbd>Space</kbd> play or pause · <kbd>→</kbd> next step</span>
+  </div>
+</section>
+
+<main class="stage">
+  <section class="card map-card" aria-label="Neighbourhood map">
+    <div class="map-top">
+      <h2>Neighbourhood map</h2>
+      <div class="clock" aria-live="off">
+        <div><div class="k">Clock</div><div class="t" id="clock-now">18:00</div></div>
+        <div class="eta" id="eta-box"><div class="k">Delivery ETA</div><div class="t" id="clock-eta">--:--</div></div>
+      </div>
+    </div>
+    <div class="phases" id="phases"></div>
+    <svg id="map" viewBox="0 0 470 470" role="group" aria-label="Neighbourhood map. Click a cell to edit it.">
+      <defs>
+        <pattern id="hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect class="hatch-bg" width="9" height="9"></rect>
+          <line class="hatch-line" x1="0" y1="0" x2="0" y2="9" stroke-width="4"></line>
+        </pattern>
+      </defs>
+      <g id="layer"></g>
+      <g id="courier" aria-label="Courier">
+        <g id="courier-body">
+          <circle class="courier-halo" r="17"></circle>
+          <rect class="bag" x="-12" y="-7.5" width="11" height="15" rx="2.5"></rect>
+          <rect class="scooter" x="-2" y="-3.5" width="12" height="7" rx="3.5"></rect>
+          <line class="bar" x1="9" y1="-7" x2="9" y2="7"></line>
+          <circle class="rider" cx="2" cy="0" r="4.5"></circle>
+        </g>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="sw line"></i>Shortest route (A*)</span>
+      <span><i class="sw dash"></i>Detour around the bridge</span>
+      <span><i class="sw" style="background:var(--explored)"></i>Cells A* expanded</span>
+      <span><i class="sw" style="background:repeating-linear-gradient(45deg,var(--wall-bg) 0 3px,var(--wall-line) 3px 5px)"></i>Closed road</span>
+      <span><i class="sw" style="background:var(--alert-tint);border-color:var(--alert)"></i>Bridge with alert</span>
+      <span><i class="sw trailsw"></i>Where the courier drove</span>
+      <span><i class="sw" style="background:var(--water);border-color:var(--water)"></i>River</span>
+      <span id="bfs-legend" hidden><i class="sw bfssw"></i>Cells BFS expanded</span>
+    </div>
+    <div class="notice" id="notice" role="status"></div>
+    <div class="edit">
+      <span class="control-label" id="tool-label">Edit map</span>
+      <div class="seg" role="radiogroup" aria-labelledby="tool-label">
+        <input type="radio" name="tool" id="tool-wall" value="wall" checked><label for="tool-wall">Close / open road</label>
+        <input type="radio" name="tool" id="tool-start" value="start"><label for="tool-start">Restaurant</label>
+        <input type="radio" name="tool" id="tool-goal" value="goal"><label for="tool-goal">Customer</label>
+        <input type="radio" name="tool" id="tool-bridge" value="bridge"><label for="tool-bridge">Bridge</label>
+      </div>
+      <button class="btn" id="reset-map" type="button">Reset map</button>
+      <button class="btn" id="random-map" type="button">Random map</button>
+      <span class="hint">Pick a tool, then click a cell.</span>
+    </div>
+  </section>
+
+  <div class="side">
+    <div class="caption" id="caption" aria-live="polite"><span class="count" id="caption-count"></span><span class="text" id="caption-text"></span></div>
+    <div class="strip" id="strip"></div>
+    <section class="card dmap" aria-label="Decision map">
+      <div class="algo-head"><h2>Decision map</h2><span class="tag">MDP choice for every risk and detour</span></div>
+      <div id="dmap"></div>
+      <p class="dmap-note" id="dmap-note"></p>
+    </section>
+  </div>
+</main>
+
+<section class="algos3" aria-label="The three algorithms">
+    <article class="card" id="card-astar">
+      <div class="algo-head"><span class="num">1</span><h2>A* search</h2><span class="tag">Shortest route on the grid</span></div>
+      <div class="lbl">Input</div>
+      <div id="astar-input"></div>
+      <div class="lbl">Steps · cells in the order A* expanded them</div>
+      <div class="trace-wrap" id="trace-wrap">
+        <table class="trace"><thead><tr><th>#</th><th>cell</th><th>g</th><th>h</th><th>f = g + h</th></tr></thead><tbody id="trace"></tbody></table>
+      </div>
+      <div class="lbl">Output</div>
+      <div class="out" id="astar-out"></div>
+      <label class="toggle" for="bfs-toggle"><input type="checkbox" id="bfs-toggle"> Compare with BFS on the map</label>
+      <div class="why" id="astar-why"></div>
+    </article>
+
+    <article class="card" id="card-bayes">
+      <div class="algo-head"><span class="num">2</span><h2>Bayesian inference</h2><span class="tag">Is the bridge really blocked?</span></div>
+      <div class="wait">Runs when the traffic report arrives.</div>
+      <div class="body">
+        <div class="lbl">Input</div>
+        <div class="sliders">
+          <div class="slider"><label for="prior">Prior P(blocked)</label><output id="prior-o"></output><input type="range" id="prior" min="0.01" max="0.6" step="0.01"></div>
+          <div class="slider"><label for="hit">P(alert | blocked)</label><output id="hit-o"></output><input type="range" id="hit" min="0.5" max="0.99" step="0.01"></div>
+          <div class="slider"><label for="fa">P(alert | clear)</label><output id="fa-o"></output><input type="range" id="fa" min="0.01" max="0.5" step="0.01"></div>
+        </div>
+        <div class="lbl">Steps</div>
+        <pre class="calc" id="bayes-calc"></pre>
+        <div class="lbl">Output</div>
+        <div class="bars" id="bayes-bars"></div>
+        <div class="why" id="bayes-why"></div>
+      </div>
+    </article>
+
+    <article class="card" id="card-mdp">
+      <div class="algo-head"><span class="num">3</span><h2>MDP decision</h2><span class="tag">Continue or reroute?</span></div>
+      <div class="wait">Runs after the risk is known.</div>
+      <div class="body" id="mdp-body"></div>
+      <div class="sliders two" id="mdp-sliders">
+        <div class="slider"><label for="penalty">Cost per extra block</label><output id="penalty-o"></output><input type="range" id="penalty" min="0" max="6" step="0.5"></div>
+        <div class="slider"><label for="gamma">Discount γ</label><output id="gamma-o"></output><input type="range" id="gamma" min="0" max="0.99" step="0.01"></div>
+      </div>
+    </article>
+</section>
+
+<section class="card" aria-label="Evening shift">
+  <div class="shift-head">
+    <div>
+      <h2>Evening shift: watch the three strategies compete</h2>
+      <p>One delivery after another on this map. Each time the bridge is randomly blocked or clear, the traffic service reports with its usual errors, and all three strategies decide from the same report.</p>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="shiftn-label">Deliveries</span>
+      <div class="seg" role="radiogroup" aria-labelledby="shiftn-label">
+        <input type="radio" name="shiftn" id="shiftn-50" value="50"><label for="shiftn-50">50</label>
+        <input type="radio" name="shiftn" id="shiftn-100" value="100" checked><label for="shiftn-100">100</label>
+        <input type="radio" name="shiftn" id="shiftn-300" value="300"><label for="shiftn-300">300</label>
+      </div>
+      <button class="btn primary" id="shift-run" type="button">Run the shift</button>
+    </div>
+  </div>
+  <div id="shift-area"></div>
+</section>
+
+<section class="card" aria-label="Evaluation">
+  <div class="eval-head">
+    <h2>Does the assistant help? 10,000 simulated evening deliveries</h2>
+    <p>Each run: the bridge is blocked with the prior probability, the alert service reports with its error rates, the policy decides before departure.</p>
+  </div>
+  <div id="eval"></div>
+</section>
+
+<footer>
+  All probabilities, rewards and the map are assumptions made for this demonstration, not real data. Cells are written (row, column) and match the Python program <code>food_delivery.py</code>, which prints the same numbers in the console.
+</footer>
+</div>
+
+<script>
+// Same algorithms as food_delivery.py, so the page and the Python agree.
+
+const key = (r, c) => r + "," + c;
+const manhattan = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+
+function neighbours(cell, walls, rows, cols) {
+  const out = [];
+  const moves = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // up, right, down, left
+  for (const [dr, dc] of moves) {
+    const r = cell[0] + dr, c = cell[1] + dc;
+    if (r >= 0 && r < rows && c >= 0 && c < cols && !walls.has(key(r, c))) out.push([r, c]);
+  }
+  return out;
+}
+
+// A* with Manhattan heuristic. Frontier ordered by (f, h, insertion order),
+// exactly like the Python heap, so both expand cells in the same order.
+function astar(start, goal, walls, rows, cols) {
+  let counter = 0;
+  const h0 = manhattan(start, goal);
+  const frontier = [[h0, h0, counter, start]];
+  const g = new Map([[key(...start), 0]]);
+  const cameFrom = new Map();
+  const closed = new Set();
+  const log = [];
+  const less = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+  while (frontier.length) {
+    let best = 0;
+    for (let i = 1; i < frontier.length; i++) if (less(frontier[i], frontier[best]) < 0) best = i;
+    const [f, h, , cell] = frontier.splice(best, 1)[0];
+    const k = key(...cell);
+    if (closed.has(k)) continue;
+    closed.add(k);
+    const frontierNow = frontier.filter(e => !closed.has(key(...e[3]))).map(e => e[3]);
+    log.push({ cell, g: g.get(k), h, f, frontier: frontierNow });
+
+    if (cell[0] === goal[0] && cell[1] === goal[1]) {
+      const path = [cell];
+      let cur = k;
+      while (cameFrom.has(cur)) { const prev = cameFrom.get(cur); path.push(prev); cur = key(...prev); }
+      return { path: path.reverse(), log };
+    }
+    for (const nxt of neighbours(cell, walls, rows, cols)) {
+      const nk = key(...nxt);
+      const ng = g.get(k) + 1;
+      if (ng < (g.has(nk) ? g.get(nk) : Infinity)) {
+        g.set(nk, ng);
+        cameFrom.set(nk, cell);
+        const hn = manhattan(nxt, goal);
+        counter += 1;
+        frontier.push([ng + hn, hn, counter, nxt]);
+      }
+    }
+  }
+  return { path: null, log };
+}
+
+function bayes(prior, hit, falseAlarm, obs) {
+  if (obs === "NONE") return { posterior: prior, evidence: null, lb: null, lc: null };
+  const lb = obs === "ALERT" ? hit : 1 - hit;
+  const lc = obs === "ALERT" ? falseAlarm : 1 - falseAlarm;
+  const evidence = lb * prior + lc * (1 - prior);
+  return { posterior: (lb * prior) / evidence, evidence, lb, lc };
+}
+
+const STATES = ["Clear", "Blocked"];
+const ACTIONS = ["Continue", "Reroute"];
+const TRANSITIONS = {
+  "Clear|Continue":   { Clear: 0.9, Blocked: 0.1 },
+  "Clear|Reroute":    { Clear: 0.9, Blocked: 0.1 },
+  "Blocked|Continue": { Clear: 0.3, Blocked: 0.7 },
+  "Blocked|Reroute":  { Clear: 0.9, Blocked: 0.1 },
+};
+
+function rewards(extra, p) {
+  const reroute = p.onTime - p.penalty * extra;
+  return {
+    "Clear|Continue": p.onTime, "Clear|Reroute": reroute,
+    "Blocked|Continue": p.stuck, "Blocked|Reroute": reroute,
+  };
+}
+
+function bellman(R, gamma) {
+  const V1 = {};
+  for (const s of STATES) V1[s] = Math.max(...ACTIONS.map(a => R[s + "|" + a]));
+  const Q = {};
+  for (const s of STATES) for (const a of ACTIONS) {
+    const T = TRANSITIONS[s + "|" + a];
+    let future = 0;
+    for (const s2 of STATES) future += T[s2] * V1[s2];
+    Q[s + "|" + a] = R[s + "|" + a] + gamma * future;
+  }
+  return { V1, Q };
+}
+
+function decide(belief, Q) {
+  const ev = {};
+  for (const a of ACTIONS) ev[a] = (1 - belief) * Q["Clear|" + a] + belief * Q["Blocked|" + a];
+  return { action: ev.Reroute > ev.Continue ? "Reroute" : "Continue", ev };
+}
+
+function threshold(Q) {
+  const gc = Q["Clear|Continue"] - Q["Clear|Reroute"];
+  const gb = Q["Blocked|Continue"] - Q["Blocked|Reroute"];
+  return gc / (gc - gb);
+}
+
+// Small seeded generator so the simulation gives the same numbers every load.
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function evaluate(p, Q, extra, n = 10000, seed = 7) {
+  const R = rewards(extra, p);
+  const assistant = obs => decide(bayes(p.prior, p.hit, p.falseAlarm, obs).posterior, Q).action;
+  const policies = [
+    ["Always continue", () => "Continue"],
+    ["Always reroute", () => "Reroute"],
+    ["Assistant", assistant],
+  ];
+  const rng = mulberry32(seed);
+  const out = [];
+  for (const [name, policy] of policies) {
+    let expected = 0, stuck = 0, rerouted = 0;
+    for (const [state, ps] of [["Blocked", p.prior], ["Clear", 1 - p.prior]]) {
+      const pa = state === "Blocked" ? p.hit : p.falseAlarm;
+      for (const [obs, po] of [["ALERT", pa], ["NO ALERT", 1 - pa]]) {
+        const pr = ps * po, a = policy(obs);
+        expected += pr * R[state + "|" + a];
+        if (state === "Blocked" && a === "Continue") stuck += pr;
+        if (a === "Reroute") rerouted += pr;
+      }
+    }
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      const state = rng() < p.prior ? "Blocked" : "Clear";
+      const pa = state === "Blocked" ? p.hit : p.falseAlarm;
+      const obs = rng() < pa ? "ALERT" : "NO ALERT";
+      total += R[state + "|" + policy(obs)];
+    }
+    out.push({ name, expected, stuck, rerouted, simulated: total / n });
+  }
+  return out;
+}
+
+
+// Breadth-first search, only to show what A*'s heuristic saves.
+function bfs(start, goal, walls, rows, cols) {
+  const queue = [start];
+  const cameFrom = new Map([[key(...start), null]]);
+  const expanded = [];
+  while (queue.length) {
+    const cell = queue.shift();
+    expanded.push(cell);
+    if (cell[0] === goal[0] && cell[1] === goal[1]) {
+      const path = [cell];
+      let cur = cameFrom.get(key(...cell));
+      while (cur) { path.push(cur); cur = cameFrom.get(key(...cur)); }
+      return { path: path.reverse(), expanded };
+    }
+    for (const nxt of neighbours(cell, walls, rows, cols)) {
+      const nk = key(...nxt);
+      if (!cameFrom.has(nk)) { cameFrom.set(nk, cell); queue.push(nxt); }
+    }
+  }
+  return { path: null, expanded };
+}
+
+// Full value iteration, only to confirm one Bellman update gives the same policy.
+function valueIteration(R, gamma, tol = 1e-9) {
+  let V = { Clear: 0, Blocked: 0 }, Q = {}, sweep = 0;
+  for (sweep = 1; sweep < 10000; sweep++) {
+    Q = {};
+    for (const s of STATES) for (const a of ACTIONS) {
+      const T = TRANSITIONS[s + "|" + a];
+      Q[s + "|" + a] = R[s + "|" + a] + gamma * (T.Clear * V.Clear + T.Blocked * V.Blocked);
+    }
+    const nV = {};
+    for (const s of STATES) nV[s] = Math.max(Q[s + "|Continue"], Q[s + "|Reroute"]);
+    const delta = Math.max(...STATES.map(s => Math.abs(nV[s] - V[s])));
+    if (delta < tol) break;
+    V = nV;
+  }
+  const policy = {};
+  for (const s of STATES) policy[s] = Q[s + "|Reroute"] > Q[s + "|Continue"] ? "Reroute" : "Continue";
+  return { V, Q, policy, sweeps: sweep };
+}
+
+// The whole decision from wherever the courier is (same as decide_at in Python).
+function decideAt(s, p, pos, remaining) {
+  const walls2 = new Set(s.walls); walls2.add(key(...s.bridge));
+  const det = astar(pos, s.goal, walls2, s.rows, s.cols);
+  const belief = bayes(p.prior, p.hit, p.falseAlarm, p.obs).posterior;
+  if (!det.path) return { detour: null, belief, action: "Continue", pos, remaining };
+  const extra = det.path.length - 1 - remaining;
+  const R = rewards(extra, p);
+  const b = bellman(R, p.gamma);
+  const d = decide(belief, b.Q);
+  const vi = valueIteration(R, p.gamma);
+  return { detour: det.path, detourLog: det.log, extra, R, V1: b.V1, Q: b.Q, belief, action: d.action, ev: d.ev,
+           threshold: threshold(b.Q), vi, pos, remaining };
+}
+
+const STUCK_WAIT_MIN = 6;
+
+// What actually happens on the road (same as simulate_trip in Python).
+function simulateTrip(s, p, onTheWay, truth) {
+  const walls = new Set(s.walls);
+  const path = astar(s.start, s.goal, walls, s.rows, s.cols).path;
+  if (!path) return null;
+  const bi = path.findIndex(c => c[0] === s.bridge[0] && c[1] === s.bridge[1]);
+  if (bi < 0) return { trip: path, minutes: blocksOf(path) * 2, action: "Continue", stuck: false, offRoute: true, decisionIdx: 0 };
+  const i = onTheWay ? bi - 1 : 0;
+  const d = decideAt(s, p, path[i], path.length - 1 - i);
+  let trip, wait = 0, stuck = false, stopIdx = null, replan = null;
+  if (d.action === "Reroute") {
+    trip = path.slice(0, i + 1).concat(d.detour.slice(1));
+  } else if (truth === "blocked") {
+    stopIdx = bi - 1;
+    const walls2 = new Set(s.walls); walls2.add(key(...s.bridge));
+    replan = astar(path[stopIdx], s.goal, walls2, s.rows, s.cols).path;
+    wait = STUCK_WAIT_MIN; stuck = true;
+    trip = replan ? path.slice(0, stopIdx + 1).concat(replan.slice(1)) : path;
+  } else {
+    trip = path;
+  }
+  return { trip, minutes: blocksOf(trip) * 2 + wait, action: d.action, stuck, decision: d, decisionIdx: i,
+           bridgeIdx: bi, stopIdx, replan, route: path };
+}
+const blocksOf = path => path.length - 1;
+
+// Decision for every combination of risk and detour length.
+function policyGrid(p, maxExtra = 10, steps = 20) {
+  const beliefs = Array.from({ length: steps + 1 }, (_, i) => i / steps);
+  const grid = [];
+  for (let extra = 0; extra <= maxExtra; extra++) {
+    const Q = bellman(rewards(extra, p), p.gamma).Q;
+    grid.push(beliefs.map(b => decide(b, Q).action));
+  }
+  return { beliefs, grid };
+}
+
+// Whole pipeline for one scenario.
+function plan(s, p) {
+  const walls = new Set(s.walls);
+  const res = { status: "ok" };
+  const main = astar(s.start, s.goal, walls, s.rows, s.cols);
+  res.route = main.path; res.log = main.log;
+  res.bayes = bayes(p.prior, p.hit, p.falseAlarm, p.obs);
+  if (!main.path) { res.status = "no-route"; return res; }
+  const onRoute = main.path.some(c => c[0] === s.bridge[0] && c[1] === s.bridge[1]);
+  if (!onRoute) { res.status = "off-route"; res.action = "Continue"; res.final = main.path; return res; }
+  const walls2 = new Set(walls); walls2.add(key(...s.bridge));
+  const det = astar(s.start, s.goal, walls2, s.rows, s.cols);
+  res.detour = det.path; res.detourLog = det.log;
+  if (!det.path) { res.status = "no-detour"; res.action = "Continue"; res.final = main.path; return res; }
+  res.extra = det.path.length - main.path.length;
+  res.R = rewards(res.extra, p);
+  const b = bellman(res.R, p.gamma);
+  res.V1 = b.V1; res.Q = b.Q;
+  const d = decide(res.bayes.posterior, b.Q);
+  res.action = d.action; res.ev = d.ev;
+  res.threshold = threshold(b.Q);
+  res.final = res.action === "Reroute" ? det.path : main.path;
+  res.evaluation = evaluate(p, b.Q, res.extra);
+  return res;
+}
+
+</script>
+<script>
+// Same maps as MAPS in food_delivery.py.  S restaurant, C customer, # closed, = river.
+const MAP_TEXT = {
+ "6x6": {
+  "rows": [
+   "...#..",
+   "..#..C",
+   "......",
+   "S.#...",
+   "......",
+   "......"
+  ],
+  "bridge": [
+   2,
+   2
+  ]
+ },
+ "10x10": {
+  "rows": [
+   "....=.....",
+   ".##....##C",
+   "....=.....",
+   "..#.=.##..",
+   "..#.=.....",
+   "....=..#..",
+   "S...=..#..",
+   ".##.=.....",
+   ".........#",
+   "....=....."
+  ],
+  "bridge": [
+   1,
+   4
+  ]
+ },
+ "14x14": {
+  "rows": [
+   "......=.......",
+   ".###..=..##...",
+   ".#............",
+   ".#....=....##.",
+   "......=......C",
+   "..##..=..#....",
+   "......=..#....",
+   "..##.....###..",
+   "......=.......",
+   "S##...=...##..",
+   "......=.......",
+   "..#...=..#....",
+   "..#......#..#.",
+   "......=......."
+  ],
+  "bridge": [
+   7,
+   6
+  ]
+ }
+};
+
+function parseMap(name) {
+  const m = MAP_TEXT[name], rows = m.rows.length, cols = m.rows[0].length;
+  const s = { name, rows, cols, start: null, goal: null, bridge: m.bridge.slice(), walls: [], water: [] };
+  m.rows.forEach((line, r) => [...line].forEach((ch, c) => {
+    if (ch === "S") s.start = [r, c];
+    if (ch === "C") s.goal = [r, c];
+    if (ch === "#" || ch === "=") s.walls.push(key(r, c));
+    if (ch === "=") s.water.push(key(r, c));
+  }));
+  return s;
+}
+let mapName = "6x6";
+const DEFAULT_MAP = parseMap("6x6");
+const DEFAULT_PARAMS = { prior: 0.15, hit: 0.85, falseAlarm: 0.15, onTime: 10, stuck: -8, penalty: 2, gamma: 0.9,
+                         obs: "ALERT", timing: "depart", truth: "random" };
+const MIN_PER_BLOCK = 2;
+const CELL = 72, PAD = 28;
+const SCALED = new Set(["search", "pre", "drive"]);
+const DELAY = { search: 520, route: 1500, pre: 650, alert: 2600, decide: 3000, drive: 600, cross: 1800,
+                stuck: 2600, replan: 2200, done: 0 };
+
+let scen = JSON.parse(JSON.stringify(DEFAULT_MAP));
+let params = { ...DEFAULT_PARAMS };
+let roll = Math.random();
+let res, frames = [], fi = -1, frame = { phase: "ready" }, timer = null, speed = 1, showBfs = false;
+
+const $ = s => document.querySelector(s);
+const ccx = c => PAD + c * CELL + CELL / 2;
+const ccy = r => PAD + r * CELL + CELL / 2;
+const same = (a, b) => !!a && !!b && a[0] === b[0] && a[1] === b[1];
+const cs = c => "(" + c[0] + ", " + c[1] + ")";
+const num = (x, d = 2) => { const s = Math.abs(x).toFixed(d); return (x < 0 && Number(s) !== 0 ? "−" : "") + s; };
+const pct = (x, d = 1) => (x * 100).toFixed(d) + "%";
+const blocks = p => p.length - 1;
+const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+
+function delayOf(phase) {
+  const base = (DELAY[phase] || 600) / speed;
+  return SCALED.has(phase) ? base * Math.max(0.42, 6 / scen.rows) : base;
+}
+
+/* ---------- model ---------- */
+
+function compute() {
+  const r = plan(scen, params);
+  const walls = new Set(scen.walls);
+  r.bfs = r.route ? bfs(scen.start, scen.goal, walls, scen.rows, scen.cols) : null;
+  r.grid = policyGrid(params);
+  if (r.route) {
+    r.truthBlocked = params.truth === "blocked" || (params.truth === "random" && roll < r.bayes.posterior);
+    r.trip = simulateTrip(scen, params, params.timing === "way", r.truthBlocked ? "blocked" : "clear");
+    r.dec = r.trip.decision || null;
+  }
+  return r;
+}
+
+function buildFrames() {
+  const F = [];
+  res.log.forEach((e, i) => F.push({ phase: "search", stage: 0, i, j: 0 }));
+  if (!res.route) { F.push({ phase: "done", stage: 5, j: 0 }); return F; }
+  F.push({ phase: "route", stage: 1, j: 0 });
+  const t = res.trip;
+  if (t.offRoute) {
+    for (let j = 1; j < t.trip.length; j++) F.push({ phase: "drive", stage: 4, j });
+    F.push({ phase: "done", stage: 5, j: t.trip.length - 1 });
+    return F;
+  }
+  const di = t.decisionIdx;
+  for (let j = 1; j <= di; j++) F.push({ phase: "pre", stage: 1, j });
+  F.push({ phase: "alert", stage: 2, j: di });
+  F.push({ phase: "decide", stage: 3, j: di });
+  for (let j = di + 1; j < t.trip.length; j++) {
+    if (t.stuck && j === t.stopIdx + 1) {
+      F.push({ phase: "stuck", stage: 4, j: t.stopIdx });
+      if (t.replan) F.push({ phase: "replan", stage: 4, j: t.stopIdx });
+    }
+    const crossing = !t.stuck && t.action === "Continue" && j === t.bridgeIdx;
+    F.push({ phase: crossing ? "cross" : "drive", stage: 4, j });
+  }
+  if (t.stuck && t.stopIdx === t.trip.length - 1) F.push({ phase: "stuck", stage: 4, j: t.stopIdx });
+  if (t.stuck && t.stopIdx === di && !F.some(f => f.phase === "stuck")) {
+    F.push({ phase: "stuck", stage: 4, j: di });
+  }
+  F.push({ phase: "done", stage: 5, j: t.trip.length - 1 });
+  return F;
+}
+
+function recompute(reroll = false) {
+  stop();
+  if (reroll) roll = Math.random();
+  res = compute();
+  frames = buildFrames();
+  fi = -1;
+  frame = { phase: "ready", stage: 4.5, j: 0 };
+  renderAll();
+  if (typeof stopShift === "function") { stopShift(); shift = null; renderShift(); }
+}
+
+/* ---------- what is visible in a frame ---------- */
+
+function stageOf() { return frame.stage; }
+function revealed() {
+  const t = res.trip;
+  if (!t || t.offRoute) return false;
+  if (frame.phase === "done") return true;
+  if (t.stuck) return ["stuck", "replan"].includes(frame.phase) || (frame.phase === "drive" && frame.j > t.stopIdx);
+  return t.action === "Continue" && (frame.phase === "cross" || (frame.phase === "drive" && frame.j > t.bridgeIdx));
+}
+function courierCell() {
+  if (!res.route) return scen.start;
+  if (frame.phase === "ready" || frame.phase === "search" || frame.phase === "route") return scen.start;
+  return res.trip.trip[frame.j];
+}
+
+/* ---------- map ---------- */
+
+function polyline(path, cls) {
+  if (!path || path.length < 2) return "";
+  return `<polyline class="${cls}" points="${path.map(c => ccx(c[1]) + "," + ccy(c[0])).join(" ")}"></polyline>`;
+}
+
+function restaurantIcon(c) {
+  const x = ccx(c[1]), y = ccy(c[0]);
+  return `<g transform="translate(${x - 16},${y - 20})"><rect class="icon-accent" x="1" y="4" width="30" height="8" rx="2"></rect>` +
+    `<rect class="icon-body" x="4" y="12" width="24" height="17" rx="1.5"></rect><rect class="icon-fill" x="13" y="18" width="6" height="11"></rect></g>` +
+    `<text class="icon-label" x="${x}" y="${y + 24}" text-anchor="middle">Restaurant</text>`;
+}
+function customerIcon(c) {
+  const x = ccx(c[1]), y = ccy(c[0]);
+  return `<g transform="translate(${x - 15},${y - 21})"><path class="icon-body" d="M3 14 L15 3 L27 14 V29 H3 Z"></path>` +
+    `<rect class="icon-accent" x="12" y="19" width="6" height="10"></rect></g>` +
+    `<text class="icon-label" x="${x}" y="${y + 24}" text-anchor="middle">Customer</text>`;
+}
+
+let lastAngle = 0;
+
+function courierHeading() {
+  if (!res.route) return lastAngle;
+  const trip = res.trip.trip;
+  const j = ["ready", "search", "route"].includes(frame.phase) ? 0 : frame.j;
+  let a, b;
+  if (j > 0) { a = trip[j - 1]; b = trip[j]; } else if (trip.length > 1) { a = trip[0]; b = trip[1]; } else return lastAngle;
+  const target = Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI;
+  const delta = ((target - lastAngle) % 360 + 540) % 360 - 180;
+  lastAngle += delta;
+  return lastAngle;
+}
+
+function elapsedMinutes() {
+  const t = res.trip;
+  if (!t || ["ready", "search", "route"].includes(frame.phase)) return 0;
+  if (frame.phase === "done") return t.minutes;
+  let m = frame.j * MIN_PER_BLOCK;
+  if (t.stuck && (["stuck", "replan"].includes(frame.phase) || frame.j > t.stopIdx)) m += STUCK_WAIT_MIN;
+  return m;
+}
+
+function clockText(min) {
+  const total = 18 * 60 + min;
+  return String(Math.floor(total / 60) % 24).padStart(2, "0") + ":" + String(total % 60).padStart(2, "0");
+}
+
+function renderClock() {
+  const r = res, t = r.trip, st = stageOf();
+  $("#clock-now").textContent = clockText(elapsedMinutes());
+  let eta = null, late = false;
+  if (r.route && st >= 1) {
+    eta = blocks(r.route) * MIN_PER_BLOCK;
+    if (t && !t.offRoute && st >= 3 && t.action === "Reroute") eta = t.minutes;
+    if (t && t.stuck && (["stuck", "replan", "done"].includes(frame.phase) || (frame.phase === "drive" && frame.j > t.stopIdx))) { eta = t.minutes; late = true; }
+    if (frame.phase === "ready" && t) eta = t.action === "Reroute" ? t.minutes : blocks(r.route) * MIN_PER_BLOCK;
+  }
+  $("#clock-eta").textContent = eta == null ? "--:--" : clockText(eta);
+  $("#eta-box").classList.toggle("late", late);
+}
+
+function renderMap() {
+  const st = stageOf(), r = res, t = r.trip;
+  const walls = new Set(scen.walls);
+  const shownLog = frame.phase === "search" ? r.log.slice(0, frame.i + 1) : r.log;
+  const explored = new Map(shownLog.map(e => [key(...e.cell), e]));
+  const cur = frame.phase === "search" ? r.log[frame.i] : null;
+  const frontier = new Set(cur ? cur.frontier.map(c => key(...c)) : []);
+  const bfsSet = new Set(showBfs && r.bfs ? r.bfs.expanded.map(c => key(...c)) : []);
+  const reportShown = st >= 2 && t && !t.offRoute;
+  const rev = revealed();
+  let base = "", roads = "", over = "";
+  const water = new Set(scen.water || []);
+  const svg = $("#map");
+  svg.setAttribute("viewBox", `0 0 ${PAD + scen.cols * CELL + 12} ${PAD + scen.rows * CELL + 12}`);
+  svg.classList.toggle("big", scen.rows > 6);
+  const blockedAt = (r, c) => r < 0 || c < 0 || r >= scen.rows || c >= scen.cols || walls.has(key(r, c));
+  const wet = (r, c) => water.has(key(r, c));
+
+  for (let c = 0; c < scen.cols; c++) base += `<text class="axis" x="${ccx(c)}" y="${PAD - 10}" text-anchor="middle">${c}</text>`;
+  for (let rr = 0; rr < scen.rows; rr++) base += `<text class="axis" x="${PAD - 13}" y="${ccy(rr) + 4}" text-anchor="middle">${rr}</text>`;
+
+  for (let rr = 0; rr < scen.rows; rr++) for (let c = 0; c < scen.cols; c++) {
+    const k = key(rr, c), x0 = PAD + c * CELL, y0 = PAD + rr * CELL, cell = [rr, c];
+    const isBridge = same(cell, scen.bridge);
+    let cls = "cell";
+    if (water.has(k)) cls += " water";
+    else if (walls.has(k)) cls += " wall";
+    else {
+      if (explored.has(k)) cls += " explored";
+      if (isBridge && rev) cls += r.truthBlocked ? " revealed-blocked" : " revealed-clear";
+      else if (isBridge && reportShown && params.obs === "ALERT") cls += " bridge-alert";
+      else if (isBridge && reportShown && params.obs === "NO ALERT") cls += " bridge-clear";
+      if (frontier.has(k)) cls += " frontier";
+      if (cur && same(cur.cell, cell)) cls += " current";
+      // roads: link this cell to its open right and lower neighbours
+      if (c + 1 < scen.cols && !walls.has(key(rr, c + 1))) roads += `<line class="road" x1="${ccx(c)}" y1="${ccy(rr)}" x2="${ccx(c + 1)}" y2="${ccy(rr)}"></line>`;
+      if (rr + 1 < scen.rows && !walls.has(key(rr + 1, c))) roads += `<line class="road" x1="${ccx(c)}" y1="${ccy(rr)}" x2="${ccx(c)}" y2="${ccy(rr + 1)}"></line>`;
+    }
+    base += `<rect class="${cls}" data-r="${rr}" data-c="${c}" x="${x0 + 3}" y="${y0 + 3}" width="${CELL - 6}" height="${CELL - 6}" rx="10"></rect>`;
+    if (water.has(k)) {
+      for (const dy of [22, 40, 58]) over += `<path class="wave" d="M${x0 + 12} ${y0 + dy} q7 -6 14 0 t14 0 t14 0 t14 0"></path>`;
+      continue;
+    }
+    if (walls.has(k)) { over += `<text class="closed" x="${x0 + CELL / 2}" y="${y0 + CELL / 2 + 4}" text-anchor="middle">CLOSED</text>`; continue; }
+    // a bridge has the river on both sides (or the river on one side and the map edge on the other)
+    const edgeOrWet = (r2, c2) => r2 < 0 || c2 < 0 || r2 >= scen.rows || c2 >= scen.cols || wet(r2, c2);
+    const riverNS = edgeOrWet(rr - 1, c) && edgeOrWet(rr + 1, c) && (wet(rr - 1, c) || wet(rr + 1, c));
+    const riverEW = edgeOrWet(rr, c - 1) && edgeOrWet(rr, c + 1) && (wet(rr, c - 1) || wet(rr, c + 1));
+    if (isBridge || riverNS || riverEW) {
+      const vertical = !riverNS && (riverEW || (blockedAt(rr, c - 1) && blockedAt(rr, c + 1)));
+      if (vertical) {
+        over += `<line class="rail" x1="${x0 + 23}" y1="${y0 + 10}" x2="${x0 + 23}" y2="${y0 + CELL - 10}"></line>`;
+        over += `<line class="rail" x1="${x0 + CELL - 23}" y1="${y0 + 10}" x2="${x0 + CELL - 23}" y2="${y0 + CELL - 10}"></line>`;
+      } else {
+        over += `<line class="rail" x1="${x0 + 10}" y1="${y0 + 23}" x2="${x0 + CELL - 10}" y2="${y0 + 23}"></line>`;
+        over += `<line class="rail" x1="${x0 + 10}" y1="${y0 + CELL - 23}" x2="${x0 + CELL - 10}" y2="${y0 + CELL - 23}"></line>`;
+      }
+    }
+    if (isBridge) {
+      if (!rev && reportShown && params.obs === "ALERT") {
+        over += `<path class="warn" d="M${x0 + CELL - 20} ${y0 + 29} l9 -16 l9 16 z"></path><text class="warn-mark" x="${x0 + CELL - 11}" y="${y0 + 27}" text-anchor="middle">!</text>`;
+      }
+    }
+    if (bfsSet.has(k)) over += `<circle class="bfsdot" cx="${x0 + 13}" cy="${y0 + CELL - 13}" r="4"></circle>`;
+    const e = explored.get(k);
+    if (e && !same(cell, scen.start) && !same(cell, scen.goal)) {
+      over += `<text class="gh" x="${x0 + 9}" y="${y0 + 17}">g${e.g} h${e.h}</text>`;
+      over += `<text class="fval" x="${x0 + CELL - 9}" y="${y0 + CELL - 9}" text-anchor="end">f${e.f}</text>`;
+    }
+  }
+
+  let lines = "";
+  if (r.route && st >= 1) {
+    const rerouted = t && t.action === "Reroute" && st >= 3.5;
+    const abandoned = t && t.stuck && (frame.phase === "replan" || frame.phase === "done" || (frame.phase === "drive" && frame.j > t.stopIdx));
+    lines += polyline(r.route, "route" + (rerouted || abandoned ? " faded" : ""));
+  }
+  const d = r.dec;
+  if (d && d.detour && st >= 3) {
+    const taken = t.action === "Reroute" && st >= 3.5;
+    const cls = "detour" + (taken ? " taken" : (st >= 4 ? " ghost" : ""));
+    if (!(t.stuck && !taken && frame.phase !== "decide" && st >= 4)) lines += polyline(d.detour, cls);
+  }
+  if (t && t.stuck && t.replan && (frame.phase === "replan" || frame.phase === "done" || (frame.phase === "drive" && frame.j > t.stopIdx))) {
+    lines += polyline(t.replan, "detour taken");
+  }
+  if (t && !["ready", "search", "route"].includes(frame.phase)) lines += polyline(t.trip.slice(0, frame.j + 1), "trail");
+
+  let fx = "";
+  const bx = ccx(scen.bridge[1]), by = ccy(scen.bridge[0]);
+  if (frame.phase === "alert" && params.obs === "ALERT" && t && !t.offRoute) fx += `<circle class="ping" cx="${bx}" cy="${by}" r="30"></circle>`;
+  if (frame.phase === "stuck") fx += `<circle class="ping bad" cx="${bx}" cy="${by}" r="30"></circle>`;
+  if (rev) {
+    const x0 = PAD + scen.bridge[1] * CELL, y0 = PAD + scen.bridge[0] * CELL;
+    if (r.truthBlocked) fx += `<line class="xmark" x1="${x0 + 22}" y1="${y0 + 22}" x2="${x0 + CELL - 22}" y2="${y0 + CELL - 22}"></line><line class="xmark" x1="${x0 + CELL - 22}" y1="${y0 + 22}" x2="${x0 + 22}" y2="${y0 + CELL - 22}"></line>`;
+    else fx += `<path class="check" d="M${x0 + 22} ${y0 + 37} l9 9 l17 -19"></path>`;
+  }
+  let badge = "";
+  if (frame.phase === "done" && r.route) {
+    const gx = ccx(scen.goal[1]), gy = ccy(scen.goal[0]);
+    fx += `<circle class="burst" cx="${gx}" cy="${gy}" r="30"></circle>`;
+    const byy = scen.goal[0] === 0 ? gy + 44 : gy - 62;
+    const bxx = Math.min(Math.max(gx, PAD + 48), PAD + scen.cols * CELL - 48);
+    badge = `<rect class="badge-bg" x="${bxx - 44}" y="${byy - 13}" width="88" height="22" rx="11"></rect><text class="badge-tx" x="${bxx}" y="${byy + 3}" text-anchor="middle">DELIVERED</text>`;
+  }
+
+  $("#layer").innerHTML = base + roads + over + lines + fx + restaurantIcon(scen.start) + customerIcon(scen.goal) + badge;
+  $("#bfs-legend").hidden = !showBfs;
+
+  const pos = courierCell();
+  const offset = same(pos, scen.start) || same(pos, scen.goal);
+  const x = ccx(pos[1]) + (offset ? 22 : 0), y = ccy(pos[0]) + (offset ? -22 : 0);
+  const delay = delayOf(frame.phase);
+  const courier = $("#courier");
+  courier.style.transition = `transform ${Math.min(0.45, Math.max(0.15, 0.7 * delay / 1000)).toFixed(2)}s ease-in-out`;
+  courier.style.transform = `translate(${x}px, ${y}px)`;
+  $("#courier-body").style.transform = `rotate(${courierHeading()}deg)`;
+  renderClock();
+}
+
+/* ---------- narration ---------- */
+
+function caption() {
+  const r = res, t = r.trip, d = r.dec, b = r.bayes;
+  const f = frame;
+  if (!r.route) return ["No route: the customer is cut off by closed roads. Open one of them.", "bad"];
+  const left = j => blocks(t.trip) - j;
+  switch (f.phase) {
+    case "ready": {
+      const way = params.timing === "way" ? "The report reaches the courier one block before the bridge. " : "";
+      return [`Ready. ${way}Press Play to watch A* search, the traffic report arrive and the decision being made, or step through with →.`, ""];
+    }
+    case "search": {
+      const e = r.log[f.i];
+      if (same(e.cell, scen.goal)) return [`A* takes the customer ${cs(e.cell)} off the frontier: f = ${e.f}, so no shorter route can exist. Search finished after ${r.log.length} expansions.`, "good"];
+      return [`A* expands ${cs(e.cell)}: g = ${e.g} blocks driven so far, h = ${e.h} blocks still needed at best, f = g + h = ${e.f}. ${plural(e.frontier.length, "cell")} wait on the frontier.`, ""];
+    }
+    case "route": {
+      const onRoute = !t.offRoute;
+      return [`Shortest route: ${plural(blocks(r.route), "block")}, about ${blocks(r.route) * MIN_PER_BLOCK} min${onRoute ? `, over the bridge ${cs(scen.bridge)}` : ""}. BFS would have expanded ${r.bfs.expanded.length} cells to find a route of the same length; A* needed ${r.log.length}.`, "good"];
+    }
+    case "pre": return [`The courier sets off on the planned route. Now at ${cs(t.trip[f.j])}, ${plural(left(f.j), "block")} to go.`, ""];
+    case "alert": {
+      if (params.obs === "ALERT") return [`Traffic service: ALERT on the bridge ${cs(scen.bridge)}. Bayes' rule: P(blocked) = ${num(params.hit)} × ${num(params.prior)} / ${num(b.evidence, 4)} = ${pct(b.posterior)}, up from ${pct(params.prior)}.`, "bad"];
+      if (params.obs === "NO ALERT") return [`Traffic service: no alert for the bridge. Bayes' rule lowers P(blocked) from ${pct(params.prior)} to ${pct(b.posterior)}, because most real blockages would have triggered an alert.`, "good"];
+      return [`No traffic report. Without evidence the assistant keeps the prior: P(blocked) = ${pct(params.prior)}.`, ""];
+    }
+    case "decide": {
+      if (!d || !d.detour) return [`There is no way around the bridge from ${cs(t.trip[f.j])}, so the courier has to continue.`, ""];
+      return [`A* from ${cs(d.pos)} with the bridge closed: ${plural(blocks(d.detour), "block")}, ${d.extra} more than going on. MDP: EV(Continue) = ${num(d.ev.Continue)}, EV(Reroute) = ${num(d.ev.Reroute)}. Decision: ${d.action.toUpperCase()}.`, d.action === "Reroute" ? "" : "good"];
+    }
+    case "drive": {
+      if (t.offRoute) return [`The bridge is not on the route, so the report changes nothing. Driving: ${cs(t.trip[f.j])}, ${plural(left(f.j), "block")} to go.`, ""];
+      const what = t.stuck && f.j > t.stopIdx ? "Taking the new route" : t.action === "Reroute" ? "Taking the detour" : "Continuing on the planned route";
+      return [`${what}: ${cs(t.trip[f.j])}, ${plural(left(f.j), "block")} to go.`, ""];
+    }
+    case "cross": return [`The courier crosses the bridge. It was clear, so continuing paid off this time.`, "good"];
+    case "stuck": {
+      if (!t.replan) return [`The bridge is blocked and there is no way around. The courier waits ${STUCK_WAIT_MIN} min at ${cs(t.trip[t.stopIdx])} until it clears.`, "bad"];
+      return [`The bridge is blocked. The courier loses ${STUCK_WAIT_MIN} min at ${cs(t.trip[t.stopIdx])} before turning back. This is the risk the MDP weighed when it chose to continue.`, "bad"];
+    }
+    case "replan": return [`A* replans from ${cs(t.trip[t.stopIdx])} with the bridge closed: ${plural(blocks(t.replan), "block")} to the customer.`, ""];
+    case "done": {
+      if (t.offRoute) return [`Delivered in ${t.minutes} min.`, "good"];
+      const truth = r.truthBlocked ? "blocked" : "clear";
+      const how = params.truth === "random" ? ` (drawn at random with P = ${pct(b.posterior)})` : "";
+      let tail;
+      if (t.action === "Reroute") tail = r.truthBlocked
+        ? `The bridge was in fact blocked${how}, so the detour saved the courier from getting stuck.`
+        : `The bridge was in fact clear${how}. The detour cost ${t.minutes - blocks(r.route) * MIN_PER_BLOCK} extra min, but with the risk at ${pct(b.posterior)} it was still the right bet. A decision is judged on the risk, not on one outcome.`;
+      else tail = t.stuck ? `The bridge was blocked${how}. Bad luck: at a ${pct(b.posterior)} risk, continuing was still the better bet on average.`
+        : `The bridge was clear${how}.`;
+      return [`Delivered in ${t.minutes} min. ${tail}`, t.stuck ? "bad" : "good"];
+    }
+  }
+  return ["", ""];
+}
+
+function renderCaption() {
+  const [text, tone] = caption();
+  $("#caption-text").textContent = text;
+  $("#caption").className = "caption" + (tone ? " " + tone : "");
+  $("#caption-count").textContent = frame.phase === "ready" ? "Ready" : `Step ${fi + 1} / ${frames.length}`;
+}
+
+function renderPhases() {
+  const way = params.timing === "way";
+  const names = way ? ["Search route", "Set off", "Traffic report", "Decide", "Deliver"] : ["Search route", "Traffic report", "Decide", "Deliver"];
+  const idx = { search: 0, route: 0, pre: 1, alert: way ? 2 : 1, decide: way ? 3 : 2, drive: way ? 4 : 3, cross: way ? 4 : 3,
+                stuck: way ? 4 : 3, replan: way ? 4 : 3 }[frame.phase];
+  const allDone = frame.phase === "done" || frame.phase === "ready";
+  $("#phases").innerHTML = names.map((n, i) =>
+    `<span class="phase${i === idx ? " on" : ""}${allDone || (idx != null && i < idx) ? " done" : ""}">${i + 1} ${n}</span>`).join("");
+}
+
+/* ---------- cards ---------- */
+
+function renderAstar() {
+  const r = res, st = stageOf();
+  const open = scen.rows * scen.cols - scen.walls.length;
+  $("#astar-input").textContent = `${scen.rows}×${scen.cols} map, restaurant ${cs(scen.start)}, customer ${cs(scen.goal)}, ${scen.walls.length} blocked cells${(scen.water || []).length ? ` (${scen.water.length} of them river)` : ""}. Every move costs 1. Heuristic h(n) is the Manhattan distance to the customer.`;
+  const rows = frame.phase === "search" ? r.log.slice(0, frame.i + 1) : r.log;
+  $("#trace").innerHTML = rows.map((e, i) => {
+    const isCur = frame.phase === "search" && i === frame.i;
+    return `<tr class="${isCur ? "cur" : same(e.cell, scen.goal) ? "goal" : ""}"><td>${i + 1}</td><td>${cs(e.cell)}</td><td>${e.g}</td><td>${e.h}</td><td>${e.f}</td></tr>`;
+  }).join("");
+  const w = $("#trace-wrap");
+  if (frame.phase === "search") w.scrollTop = w.scrollHeight; else if (frame.phase === "ready") w.scrollTop = 0;
+
+  let out;
+  if (!r.route) out = "No route exists. The customer is cut off by closed roads.";
+  else if (st < 1) out = `Searching… ${plural(rows.length, "cell")} expanded so far.`;
+  else {
+    const saved = 1 - r.log.length / r.bfs.expanded.length;
+    out = `Route: <b>${plural(blocks(r.route), "block")}</b>, about ${blocks(r.route) * MIN_PER_BLOCK} min. A* expanded <b>${r.log.length}</b> of ${open} open cells; BFS needs <b>${r.bfs.expanded.length}</b> for the same length, so the heuristic saves ${pct(saved, 0)} of the work.`;
+    const d = r.dec;
+    if (d && d.detour && st >= 3) out += `<br>Detour from ${cs(d.pos)} with the bridge closed (A* run again): <b>${plural(blocks(d.detour), "block")}</b>, ${d.extra} more than going on.`;
+    if (r.trip.offRoute) out += `<br>The bridge ${cs(scen.bridge)} is not on this route.`;
+  }
+  $("#astar-out").innerHTML = out;
+  $("#astar-why").textContent = "f = g + h keeps the search moving toward the customer, and because h never overestimates the remaining distance, the first route A* completes is a shortest one.";
+}
+
+function renderBayes() {
+  const st = stageOf(), r = res, b = r.bayes;
+  $("#card-bayes").classList.toggle("pending", st < 2);
+  $("#prior").value = params.prior; $("#prior-o").textContent = params.prior.toFixed(2);
+  $("#hit").value = params.hit; $("#hit-o").textContent = params.hit.toFixed(2);
+  $("#fa").value = params.falseAlarm; $("#fa-o").textContent = params.falseAlarm.toFixed(2);
+  const pr = params.prior, hit = params.hit, fa = params.falseAlarm;
+  let calc;
+  if (params.obs === "ALERT") calc = `Observation: ALERT on the bridge ${cs(scen.bridge)}\nP(alert) = ${hit.toFixed(2)} × ${pr.toFixed(2)} + ${fa.toFixed(2)} × ${(1 - pr).toFixed(2)} = ${b.evidence.toFixed(4)}\nP(blocked | alert) = ${hit.toFixed(2)} × ${pr.toFixed(2)} / ${b.evidence.toFixed(4)} = ${b.posterior.toFixed(4)}`;
+  else if (params.obs === "NO ALERT") calc = `Observation: NO ALERT for the bridge ${cs(scen.bridge)}\nP(no alert) = ${(1 - hit).toFixed(2)} × ${pr.toFixed(2)} + ${(1 - fa).toFixed(2)} × ${(1 - pr).toFixed(2)} = ${b.evidence.toFixed(4)}\nP(blocked | no alert) = ${(1 - hit).toFixed(2)} × ${pr.toFixed(2)} / ${b.evidence.toFixed(4)} = ${b.posterior.toFixed(4)}`;
+  else calc = `Observation: none\nNo evidence arrived, so P(blocked) stays at the prior ${pr.toFixed(4)}`;
+  $("#bayes-calc").textContent = calc;
+  const tm = r.dec && r.dec.detour ? r.dec.threshold : null;
+  const mark = tm != null && tm > 0 && tm < 1 ? `<span class="tmark" style="left:calc(${tm * 100}% - 1px)"></span>` : "";
+  $("#bayes-bars").innerHTML =
+    `<div class="barrow"><span>Before the report</span><span class="track"><span class="fill" style="left:0;width:${pr * 100}%"></span>${mark}</span><span class="val">${pct(pr)}</span></div>` +
+    `<div class="barrow"><span>After the report</span><span class="track"><span class="fill post" style="left:0;width:${b.posterior * 100}%"></span>${mark}</span><span class="val">${pct(b.posterior)}</span></div>` +
+    (mark ? `<div class="tnote">Blue line: the MDP reroutes above ${pct(tm)}</div>` : "");
+  let why;
+  if (params.obs === "ALERT") why = `One alert moves the risk from ${pct(pr)} to ${pct(b.posterior)}. It is not proof, because ${pct(fa, 0)} of clear bridges also trigger an alert.`;
+  else if (params.obs === "NO ALERT") why = `A quiet report lowers the risk from ${pct(pr)} to ${pct(b.posterior)}, since ${pct(hit, 0)} of real blockages would have raised an alert.`;
+  else why = `With no report the assistant can only use what it knew before: a ${pct(pr)} chance of a blockage at this hour.`;
+  $("#bayes-why").textContent = why;
+}
+
+function renderMdp() {
+  const st = stageOf(), r = res, d = r.dec;
+  $("#card-mdp").classList.toggle("pending", st < 3);
+  $("#penalty").value = params.penalty; $("#penalty-o").textContent = params.penalty.toFixed(1);
+  $("#gamma").value = params.gamma; $("#gamma-o").textContent = params.gamma.toFixed(2);
+  const body = $("#mdp-body");
+  if (!r.route) { body.innerHTML = `<div class="lbl">Output</div><div class="out">There is no route, so there is nothing to decide.</div>`; return; }
+  if (r.trip.offRoute) { body.innerHTML = `<div class="lbl">Output</div><div class="out">The bridge is not on the shortest route, so the report does not affect this delivery. The courier continues.</div>`; return; }
+  if (!d || !d.detour) { body.innerHTML = `<div class="lbl">Output</div><div class="out">There is no way around the bridge from ${cs(r.trip.trip[r.trip.decisionIdx])}, so rerouting is not possible. The courier continues.</div>`; return; }
+
+  const R = d.R, Q = d.Q, V1 = d.V1, belief = d.belief;
+  const where = params.timing === "way" ? `The report arrives at ${cs(d.pos)}, ${plural(d.remaining, "block")} from the customer.` : `The report arrives before departure.`;
+  let h = `<div class="lbl">Input</div><div>${where} States Clear and Blocked, actions Continue and Reroute, γ = ${params.gamma.toFixed(2)}. The A* detour adds ${plural(d.extra, "block")}, so rerouting is worth ${params.onTime} − ${params.penalty.toFixed(1)} × ${d.extra} = <b>${num(R["Clear|Reroute"], 1)}</b>.</div>`;
+  const T = { "Clear|Continue": "Clear 0.9, Blocked 0.1", "Clear|Reroute": "Clear 0.9, Blocked 0.1", "Blocked|Continue": "Clear 0.3, Blocked 0.7", "Blocked|Reroute": "Clear 0.9, Blocked 0.1" };
+  h += `<div class="lbl">Steps · one Bellman update</div><table class="q"><thead><tr><th>state</th><th>action</th><th>next state</th><th>R</th><th>Q</th></tr></thead><tbody>`;
+  for (const s of ["Clear", "Blocked"]) {
+    const best = Q[s + "|Reroute"] > Q[s + "|Continue"] ? "Reroute" : "Continue";
+    for (const a of ["Continue", "Reroute"]) {
+      const k = s + "|" + a;
+      h += `<tr class="${a === best ? "win" : ""}"><td>${s}</td><td>${a}</td><td>${T[k]}</td><td>${num(R[k], 1)}</td><td class="qv">${num(Q[k])}</td></tr>`;
+    }
+  }
+  h += `</tbody></table><pre class="calc" style="margin-top:8px">V1(s) = max R(s,a):  V1(Clear) = ${num(V1.Clear, 1)}, V1(Blocked) = ${num(V1.Blocked, 1)}\nQ(s,a) = R(s,a) + γ × Σ T(s'|s,a) × V1(s')\nEV(Continue) = ${(1 - belief).toFixed(3)} × ${num(Q["Clear|Continue"])} + ${belief.toFixed(3)} × ${num(Q["Blocked|Continue"])} = ${num(d.ev.Continue)}\nEV(Reroute)  = ${(1 - belief).toFixed(3)} × ${num(Q["Clear|Reroute"])} + ${belief.toFixed(3)} × ${num(Q["Blocked|Reroute"])} = ${num(d.ev.Reroute)}</pre>`;
+  const one = { Clear: Q["Clear|Reroute"] > Q["Clear|Continue"] ? "Reroute" : "Continue", Blocked: Q["Blocked|Reroute"] > Q["Blocked|Continue"] ? "Reroute" : "Continue" };
+  const agree = one.Clear === d.vi.policy.Clear && one.Blocked === d.vi.policy.Blocked;
+  h += `<div style="font-size:13px;color:var(--muted);margin-top:6px">Check: full value iteration converges after ${d.vi.sweeps} sweeps to Clear → ${d.vi.policy.Clear}, Blocked → ${d.vi.policy.Blocked}${agree ? ", the same policy as one update." : ", which differs from one update."}</div>`;
+
+  const evs = [d.ev.Continue, d.ev.Reroute];
+  const lo = Math.min(0, ...evs), hi = Math.max(0, ...evs), span = hi - lo || 1;
+  const bar = (v, cls) => {
+    const zero = lo < 0 ? `<span class="zero" style="left:${(0 - lo) / span * 100}%"></span>` : "";
+    return `<span class="track"><span class="fill ${cls}" style="left:${(Math.min(0, v) - lo) / span * 100}%;width:${Math.abs(v) / span * 100}%"></span>${zero}</span>`;
+  };
+  const win = d.action;
+  h += `<div class="lbl">Output</div><div class="bars"><div class="barrow"><span>EV(Continue)</span>${bar(d.ev.Continue, "cont" + (win === "Continue" ? "" : " dim"))}<span class="val">${num(d.ev.Continue)}</span></div>` +
+       `<div class="barrow"><span>EV(Reroute)</span>${bar(d.ev.Reroute, "rer" + (win === "Reroute" ? "" : " dim"))}<span class="val">${num(d.ev.Reroute)}</span></div></div>`;
+  h += `<div class="out" style="margin-top:10px">Decision: <span class="pill ${win.toLowerCase()}">${win.toUpperCase()}</span> · reroute whenever P(blocked) &gt; ${pct(d.threshold)}</div>`;
+  const why = win === "Reroute"
+    ? `The risk of ${pct(belief)} is above the ${pct(d.threshold)} break-even point, so a sure detour beats gambling on the bridge.`
+    : `The risk of ${pct(belief)} is below the ${pct(d.threshold)} break-even point, so the shorter route is worth the small chance of getting stuck.`;
+  h += `<div class="why">${why}</div>`;
+  body.innerHTML = h;
+}
+
+function renderDecisionMap() {
+  const { beliefs, grid } = res.grid;
+  const W = 520, H = 268, L = 52, T = 14, Rm = 12, B = 46;
+  const cw = (W - L - Rm) / beliefs.length, ch = (H - T - B) / grid.length;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Decision for every risk and detour length">`;
+  for (let e = 0; e < grid.length; e++) for (let i = 0; i < beliefs.length; i++) {
+    const x = L + i * cw, y = T + (grid.length - 1 - e) * ch;
+    s += `<rect class="${grid[e][i] === "Reroute" ? "c-rer" : "c-con"}" x="${x}" y="${y}" width="${cw + 0.5}" height="${ch + 0.5}"></rect>`;
+  }
+  // boundary between continue and reroute
+  let path = "";
+  for (let e = 0; e < grid.length; e++) {
+    const i = grid[e].indexOf("Reroute");
+    const x = L + (i < 0 ? beliefs.length : i) * cw, y1 = T + (grid.length - 1 - e) * ch, y2 = y1 + ch;
+    path += (e === 0 ? `M${x} ${y2}` : ` L${x} ${y2}`) + ` L${x} ${y1}`;
+  }
+  s += `<path class="boundary" d="${path}"></path>`;
+  for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+    const x = L + (p * (beliefs.length - 1) + 0.5) * cw;
+    s += `<text class="tick" x="${x}" y="${H - B + 16}" text-anchor="middle">${p * 100}%</text>`;
+  }
+  for (let e = 0; e <= 10; e += 2) s += `<text class="tick" x="${L - 8}" y="${T + (grid.length - 1 - e) * ch + ch / 2 + 4}" text-anchor="end">+${e}</text>`;
+  s += `<text class="axl" x="${L + (W - L - Rm) / 2}" y="${H - 8}" text-anchor="middle">P(bridge blocked) after the report</text>`;
+  s += `<text class="axl" transform="translate(14,${T + (H - T - B) / 2}) rotate(-90)" text-anchor="middle">extra blocks of detour</text>`;
+  s += `<text class="lab con" x="${L + 12}" y="${T + 22}">CONTINUE</text>`;
+  s += `<text class="lab rer" x="${W - Rm - 12}" y="${H - B - 12}" text-anchor="end">REROUTE</text>`;
+  const d = res.dec;
+  const showMe = d && d.detour && (stageOf() >= 3);
+  if (showMe) {
+    const e = Math.min(d.extra, 10);
+    const x = L + (d.belief * (beliefs.length - 1) + 0.5) * cw, y = T + (grid.length - 1 - e) * ch + ch / 2;
+    s += `<circle class="me-ring" cx="${x}" cy="${y}" r="11"></circle><circle class="me" cx="${x}" cy="${y}" r="6"></circle>`;
+  }
+  s += `</svg>`;
+  $("#dmap").innerHTML = s;
+  let note;
+  if (!d || !d.detour) note = "The map shows the MDP decision for any risk and detour length with the current rewards and γ.";
+  else if (!showMe) note = "The orange dot for this delivery appears at the Decide step.";
+  else note = `Orange dot: this delivery, risk ${pct(d.belief)} and a detour of +${d.extra}${d.extra > 10 ? " (off the chart)" : ""}, so ${d.action.toUpperCase()}. Move the sliders or switch “Report arrives” to see the dot and the boundary move.`;
+  $("#dmap-note").textContent = note;
+}
+
+function renderStrip() {
+  const st = stageOf(), r = res;
+  const tile = (k, v, s) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  if (!r.route) { $("#strip").innerHTML = tile("Route", "none", "customer unreachable") + tile("Bridge blocked", "–", "") + tile("Decision", "–", "") + tile("Delivered", "–", ""); return; }
+  const t = r.trip, d = r.dec;
+  const a = st >= 1 ? tile("Planned route", plural(blocks(r.route), "block"), `about ${blocks(r.route) * MIN_PER_BLOCK} min`) : tile("Planned route", "…", "searching");
+  const b = t.offRoute ? tile("Bridge blocked", "–", "not on the route")
+    : st >= 2 ? tile("Bridge blocked", pct(r.bayes.posterior, 0), params.obs === "NONE" ? "no report, prior only" : params.obs === "ALERT" ? "after the alert" : "after the quiet report")
+    : tile("Bridge blocked", "…", "waiting for the report");
+  const c = st >= 3 || t.offRoute ? tile("Decision", `<span class="pill ${t.action.toLowerCase()}">${t.action.toUpperCase()}</span>`, d && d.detour ? `threshold ${pct(d.threshold)}` : "no alternative")
+    : tile("Decision", "…", "");
+  let e;
+  if (frame.phase === "done") e = tile("Delivered", `${t.minutes} min`, `${plural(blocks(t.trip), "block")}${t.stuck ? `, ${STUCK_WAIT_MIN} min stuck` : ""}`);
+  else if (frame.phase === "ready") e = tile("Delivery", t.action === "Reroute" ? `${blocks(t.trip) * MIN_PER_BLOCK} min` : `${blocks(r.route) * MIN_PER_BLOCK} min`, t.action === "Reroute" ? "planned, via the detour" : "if the bridge is clear");
+  else e = tile("Delivery", st >= 1 && frame.j > 0 ? `${plural(blocks(t.trip) - frame.j, "block")}` : "…", st >= 1 && frame.j > 0 ? "still to go" : "");
+  $("#strip").innerHTML = a + b + c + e;
+}
+
+function renderNotice() {
+  const r = res;
+  let msg = "";
+  if (!r.route) msg = "No route: the customer is cut off. Open one of the closed roads.";
+  else if (r.trip.offRoute) msg = "The bridge is not on the shortest route, so the traffic report does not change this delivery. Use the Bridge tool to put it on the route.";
+  $("#notice").textContent = msg;
+  $("#notice").classList.toggle("show", !!msg);
+}
+
+function renderEval() {
+  const r = res, box = $("#eval");
+  if (r.status !== "ok") { box.innerHTML = `<p class="conclusion">The evaluation runs when the bridge is on the route and a detour exists.</p>`; return; }
+  const ev = r.evaluation;
+  const vals = ev.map(e => e.expected);
+  const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals), span = hi - lo || 1;
+  const best = ev.reduce((a, b) => (b.expected > a.expected + 1e-9 ? b : a));
+  let h = `<div class="eval-scroll"><table class="evaltab"><thead><tr><th>Policy</th><th>Average reward per delivery</th><th>exact</th><th>simulated</th><th>stuck at bridge</th><th>rerouted</th></tr></thead><tbody>`;
+  for (const e of ev) {
+    const zero = lo < 0 ? `<span class="zero" style="left:${(0 - lo) / span * 100}%"></span>` : "";
+    h += `<tr class="${e === best ? "best" : ""}"><td>${e.name === "Assistant" ? "Assistant (Bayes + MDP)" : e.name}</td>` +
+      `<td><span class="track" style="display:block"><span class="${e.name === "Assistant" ? "fill assist" : "fill"}" style="left:${(Math.min(0, e.expected) - lo) / span * 100}%;width:${Math.abs(e.expected) / span * 100}%"></span>${zero}</span></td>` +
+      `<td>${num(e.expected)}</td><td>${num(e.simulated)}</td><td>${pct(e.stuck)}</td><td>${pct(e.rerouted)}</td></tr>`;
+  }
+  h += `</tbody></table></div>`;
+  const a = ev[2], c = ev[0];
+  let concl = `The assistant cuts orders stuck at the bridge from ${pct(c.stuck)} to ${pct(a.stuck)} while rerouting ${pct(a.rerouted)} of orders.`;
+  concl += best.name === "Assistant" ? " It earns the highest average reward of the three policies." : ` With these settings it does no better than “${best.name.toLowerCase()}”, because it always makes the same choice.`;
+  box.innerHTML = h + `<p class="conclusion">${concl}</p>`;
+}
+
+function renderAll() {
+  renderMap(); renderCaption(); renderPhases(); renderAstar(); renderBayes(); renderMdp();
+  renderDecisionMap(); renderStrip(); renderNotice(); renderEval();
+  $("#play").textContent = timer ? "Pause" : frame.phase === "done" ? "Play again" : fi >= 0 ? "Continue" : "Play demo";
+}
+
+/* ---------- playback ---------- */
+
+function stop() { if (timer) { clearTimeout(timer); timer = null; } }
+function advance() {
+  if (fi >= frames.length - 1) return false;
+  fi += 1; frame = frames[fi]; renderAll(); return true;
+}
+function tick() {
+  timer = null;
+  if (!advance() || frame.phase === "done") { renderAll(); return; }
+  timer = setTimeout(tick, delayOf(frame.phase));
+  $("#play").textContent = "Pause";
+}
+function startOver() {
+  if (params.truth === "random") { roll = Math.random(); res = compute(); frames = buildFrames(); }
+  fi = -1;
+}
+function togglePlay() {
+  if (timer) { stop(); renderAll(); return; }
+  if (frame.phase === "ready" || frame.phase === "done") startOver();
+  timer = setTimeout(tick, 0);
+  $("#play").textContent = "Pause";
+}
+function stepOnce() {
+  stop();
+  if (frame.phase === "ready" || frame.phase === "done") startOver();
+  advance();
+  renderAll();
+}
+
+$("#play").addEventListener("click", togglePlay);
+$("#step").addEventListener("click", stepOnce);
+$("#skip").addEventListener("click", () => { stop(); fi = frames.length - 1; frame = frames[fi]; renderAll(); });
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" && e.target.type === "range") return;
+  if (e.key === " " && tag !== "button") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); stepOnce(); }
+});
+
+/* ---------- inputs ---------- */
+
+const onRadio = (name, fn) => document.querySelectorAll(`input[name="${name}"]`).forEach(el => el.addEventListener("change", () => fn(el.value)));
+onRadio("obs", v => { params.obs = v; recompute(); });
+onRadio("timing", v => { params.timing = v; recompute(); });
+onRadio("truth", v => { params.truth = v; recompute(v === "random"); });
+onRadio("speed", v => { speed = Number(v); });
+const bindSlider = (id, prop) => $("#" + id).addEventListener("input", e => { params[prop] = Number(e.target.value); recompute(); });
+bindSlider("prior", "prior"); bindSlider("hit", "hit"); bindSlider("fa", "falseAlarm");
+bindSlider("penalty", "penalty"); bindSlider("gamma", "gamma");
+$("#bfs-toggle").addEventListener("change", e => { showBfs = e.target.checked; renderMap(); });
+
+$("#map").addEventListener("click", e => {
+  const t = e.target.closest("rect.cell");
+  if (!t) return;
+  const cell = [Number(t.dataset.r), Number(t.dataset.c)];
+  const k = key(...cell);
+  const tool = document.querySelector('input[name="tool"]:checked').value;
+  const special = same(cell, scen.start) || same(cell, scen.goal) || same(cell, scen.bridge);
+  const walls = new Set(scen.walls);
+  if (tool === "wall") {
+    if (special) return;
+    if (walls.has(k)) { walls.delete(k); scen.water = (scen.water || []).filter(w => w !== k); }
+    else walls.add(k);
+    scen.walls = [...walls];
+  } else {
+    if (walls.has(k) || special) return;
+    scen[tool] = cell;
+  }
+  recompute();
+});
+$("#reset-map").addEventListener("click", () => { scen = parseMap(mapName); recompute(); });
+document.querySelectorAll('input[name="size"]').forEach(el => el.addEventListener("change", () => {
+  mapName = el.value; scen = parseMap(mapName); recompute(true);
+}));
+
+function randomMap() {
+  const n = scen.rows, all = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) all.push([r, c]);
+  const rnd = k => Math.floor(Math.random() * k);
+  const pick = () => all[rnd(all.length)];
+  for (let attempt = 0; attempt < 4000; attempt++) {
+    const walls = new Set(), water = new Set();
+    let start, goal, bridge, rc = -1;
+    if (n <= 6) {
+      start = pick(); goal = pick();
+      if (manhattan(start, goal) < 6) continue;
+      while (walls.size < 3) { const w = pick(); if (!same(w, start) && !same(w, goal)) walls.add(key(...w)); }
+    } else {
+      rc = Math.floor(n / 2) - 1 + rnd(3);
+      const nb = n >= 14 ? 3 : 2, crossings = new Set();
+      while (crossings.size < nb) crossings.add(rnd(n));
+      for (let r = 0; r < n; r++) if (!crossings.has(r)) { walls.add(key(r, rc)); water.add(key(r, rc)); }
+      start = [rnd(n), rnd(2)]; goal = [rnd(n), n - 1 - rnd(2)];
+      const target = Math.round(n * n / 9);
+      while (walls.size - water.size < target) {
+        const w = pick();
+        if (w[1] !== rc && !same(w, start) && !same(w, goal)) walls.add(key(...w));
+      }
+    }
+    const route = astar(start, goal, walls, n, n).path;
+    if (!route || route.length < n + 1) continue;
+    if (n <= 6) bridge = route[Math.floor(route.length / 2)];
+    else bridge = route.find(c => c[1] === rc);
+    if (!bridge || same(bridge, start) || same(bridge, goal)) continue;
+    const w2 = new Set(walls); w2.add(key(...bridge));
+    const det = astar(start, goal, w2, n, n).path;
+    if (!det) continue;
+    const extra = det.length - route.length;
+    if (extra < 2 || extra > (n <= 6 ? 6 : 8)) continue;
+    return { name: "random", rows: n, cols: n, start, goal, bridge, walls: [...walls], water: [...water] };
+  }
+  return parseMap(mapName);
+}
+$("#random-map").addEventListener("click", () => { scen = randomMap(); recompute(true); });
+
+
+/* ---------- evening shift ---------- */
+
+let shift = null, shiftTimer = null, shiftN = 100;
+
+function shiftSetup() {
+  const r = res;
+  if (!r.route || r.status !== "ok") return null;
+  const w2 = new Set(scen.walls); w2.add(key(...scen.bridge));
+  const route = r.route, detour = r.detour;
+  const stop = route.findIndex(c => same(c, scen.bridge)) - 1;
+  const replan = astar(route[stop], scen.goal, w2, scen.rows, scen.cols).path;
+  const minutes = {
+    "Continue|clear": blocks(route) * MIN_PER_BLOCK,
+    "Continue|blocked": (replan ? stop + blocks(replan) : blocks(route)) * MIN_PER_BLOCK + STUCK_WAIT_MIN,
+    "Reroute|clear": blocks(detour) * MIN_PER_BLOCK,
+    "Reroute|blocked": blocks(detour) * MIN_PER_BLOCK,
+  };
+  const post = o => bayes(params.prior, params.hit, params.falseAlarm, o).posterior;
+  const aAlert = decide(post("ALERT"), r.Q).action, aQuiet = decide(post("NO ALERT"), r.Q).action;
+  const pol = [
+    { id: "cont", name: "Always continue", act: () => "Continue", exact: r.evaluation[0].expected },
+    { id: "rer", name: "Always reroute", act: () => "Reroute", exact: r.evaluation[1].expected },
+    { id: "ast", name: "Assistant (Bayes + MDP)", act: o => (o === "ALERT" ? aAlert : aQuiet), exact: r.evaluation[2].expected },
+  ];
+  pol.forEach(p => Object.assign(p, { sum: 0, mins: 0, stuck: 0, series: [] }));
+  const vals = Object.values(r.R);
+  return { n: shiftN, i: 0, pol, minutes, R: r.R, ribbon: [], yMin: Math.min(...vals), yMax: Math.max(...vals), alerts: 0, blocked: 0, aAlert, aQuiet };
+}
+
+function shiftStep() {
+  const s = shift;
+  const blocked = Math.random() < params.prior;
+  const alert = Math.random() < (blocked ? params.hit : params.falseAlarm);
+  const obs = alert ? "ALERT" : "NO ALERT", truth = blocked ? "blocked" : "clear";
+  s.i += 1; s.alerts += alert; s.blocked += blocked;
+  for (const p of s.pol) {
+    const a = p.act(obs);
+    p.sum += s.R[(blocked ? "Blocked" : "Clear") + "|" + a];
+    p.mins += s.minutes[a + "|" + truth];
+    if (a === "Continue" && blocked) p.stuck += 1;
+    p.series.push(p.sum / s.i);
+    if (p.id === "ast") s.ribbon.push({ cls: a === "Reroute" ? "det" : blocked ? "stk" : "over", alert, blocked, a });
+  }
+}
+
+function renderShift() {
+  const area = $("#shift-area");
+  if (!shift) shift = shiftSetup();
+  const btn = $("#shift-run");
+  if (!shift) {
+    btn.disabled = true;
+    area.innerHTML = `<p class="shift-note">The shift runs when the bridge is on the route and a detour exists. Reset the map to try it.</p>`;
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = shiftTimer ? "Stop" : shift.i >= shift.n ? "Run again" : shift.i > 0 ? "Continue" : "Run the shift";
+  const s = shift;
+
+  // chart
+  const W = 760, H = 280, L = 46, Rm = 168, T = 18, B = 42;
+  const pw = W - L - Rm, ph = H - T - B;
+  const X = i => L + (s.n <= 1 ? 0 : (i / (s.n - 1)) * pw);
+  const Y = v => T + (s.yMax - v) / (s.yMax - s.yMin) * ph;
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running average reward of three strategies">`;
+  const step = (s.yMax - s.yMin) > 12 ? 4 : 2;
+  for (let v = Math.ceil(s.yMin / step) * step; v <= s.yMax; v += step) {
+    g += `<line class="grid" x1="${L}" x2="${L + pw}" y1="${Y(v)}" y2="${Y(v)}"></line><text class="tick" x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+    const i = Math.round(f * (s.n - 1));
+    g += `<text class="tick" x="${X(i)}" y="${H - B + 18}" text-anchor="middle">${i + 1}</text>`;
+  }
+  g += `<text class="axl" x="${L + pw / 2}" y="${H - 6}" text-anchor="middle">delivery number</text>`;
+  g += `<text class="axl" transform="translate(13,${T + ph / 2}) rotate(-90)" text-anchor="middle">average reward so far</text>`;
+  // exact expected values (dashed) + labels with simple collision avoidance
+  const labs = s.pol.map(p => ({ p, y: Y(p.exact) })).sort((a, b) => a.y - b.y);
+  for (let k = 1; k < labs.length; k++) if (labs[k].y - labs[k - 1].y < 16) labs[k].y = labs[k - 1].y + 16;
+  for (const p of s.pol) g += `<line class="exp k-${p.id}" x1="${L}" x2="${L + pw}" y1="${Y(p.exact)}" y2="${Y(p.exact)}"></line>`;
+  for (const p of s.pol) {
+    if (p.series.length > 1) g += `<polyline class="run k-${p.id}" style="fill:none" points="${p.series.map((v, i) => X(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ")}"></polyline>`;
+    if (p.series.length) g += `<circle class="k-${p.id}" cx="${X(p.series.length - 1)}" cy="${Y(p.series[p.series.length - 1])}" r="4"></circle>`;
+  }
+  for (const l of labs) {
+    const short = { cont: "Always continue", rer: "Always reroute", ast: "Assistant" }[l.p.id];
+    g += `<text class="lab k-${l.p.id}" style="stroke:none" x="${L + pw + 10}" y="${l.y + 4}">${short} ${num(l.p.exact)}</text>`;
+  }
+  if (s.i === 0) g += `<text class="axl" x="${L + pw / 2}" y="${T + 24}" text-anchor="middle">Dashed lines: exact expected values. Press “Run the shift” to watch the averages settle onto them.</text>`;
+  g += `</svg>`;
+
+  // scoreboard
+  const best = s.i > 0 ? s.pol.reduce((a, b) => (b.sum > a.sum ? b : a)) : null;
+  const board = s.pol.map(p => {
+    const avg = s.i ? num(p.sum / s.i) : "–";
+    const am = s.i ? (p.mins / s.i).toFixed(1) + " min" : "–";
+    return `<div class="brow ${p.id}${s.i >= s.n && p === best ? " win" : ""}"><span class="name">${p.name}</span><span class="big">${avg}</span>` +
+      `<span class="meta">stuck ${p.stuck} · avg trip ${am}</span></div>`;
+  }).join("");
+
+  const ribbon = s.ribbon.map((x, k) => `<i class="${x.cls}${x.alert ? " alert" : ""}" title="Delivery ${k + 1}: ${x.alert ? "alert" : "no alert"}, bridge ${x.blocked ? "blocked" : "clear"}, assistant ${x.a.toLowerCase()}"></i>`).join("");
+
+  let note = "";
+  if (s.i >= s.n) {
+    const [c, rr, a] = s.pol;
+    note = `After ${s.n} deliveries the bridge was blocked ${plural(s.blocked, "time")}. Always continuing got stuck ${plural(c.stuck, "time")}; the assistant got stuck ${plural(a.stuck, "time")}, because it rerouted whenever an alert came in. ` +
+      `Average reward: assistant ${num(a.sum / s.n)}, always continue ${num(c.sum / s.n)}, always reroute ${num(rr.sum / s.n)}. ` +
+      `With more deliveries the averages move closer to the dashed lines, which are the exact values from the Python evaluation.`;
+  } else if (s.i > 0) note = `${s.i} of ${s.n} deliveries done…`;
+  else note = `The assistant reroutes after an alert (${s.aAlert.toLowerCase()}) and otherwise takes the bridge (${s.aQuiet.toLowerCase()}).`;
+
+  area.innerHTML = `<div class="shift-body"><div class="shift-chart">${g}</div><div><div class="counter">Delivery ${s.i} / ${s.n} · bridge blocked ${plural(s.blocked, "time")} · alerts ${s.alerts}</div><div class="board" style="margin-top:8px">${board}</div></div></div>` +
+    `<div class="ribbon-wrap"><div class="control-label">Assistant, delivery by delivery</div><div class="ribbon">${ribbon}</div>` +
+    `<div class="rlegend"><span><i style="background:var(--good)"></i>over the bridge</span><span><i style="background:var(--detour)"></i>rerouted</span><span><i style="background:var(--bad)"></i>stuck at the blocked bridge</span><span><i style="background:var(--surface-2);box-shadow:inset 0 3px 0 var(--alert)"></i>alert received</span></div></div>` +
+    `<p class="shift-note">${note}</p>`;
+}
+
+function stopShift() { if (shiftTimer) { clearTimeout(shiftTimer); shiftTimer = null; } }
+function shiftTick() {
+  shiftTimer = null;
+  if (!shift || shift.i >= shift.n) { renderShift(); return; }
+  shiftStep();
+  shiftTimer = shift.i < shift.n ? setTimeout(shiftTick, Math.min(120, Math.max(16, 6000 / shift.n))) : null;
+  renderShift();
+}
+$("#shift-run").addEventListener("click", () => {
+  if (shiftTimer) { stopShift(); renderShift(); return; }
+  if (!shift || shift.i >= shift.n) shift = shiftSetup();
+  if (!shift) return;
+  shiftTimer = setTimeout(shiftTick, 0);
+  renderShift();
+});
+document.querySelectorAll('input[name="shiftn"]').forEach(el => el.addEventListener("change", () => {
+  shiftN = Number(el.value); stopShift(); shift = null; renderShift();
+}));
+
+recompute();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Food Delivery Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: the map is the stage on the left, the three algorithm cards stack on the right, evaluation runs full width below. */
+  --bg: #EDF1F4;
+  --surface: #FFFFFF;
+  --surface-2: #F4F7F9;
+  --ink: #13202E;
+  --muted: #5A6A7B;
+  --line: #D6DEE6;
+  --accent: #E4533A;
+  --accent-tint: #FBE3DC;
+  --detour: #2563EB;
+  --detour-tint: #DCE7FD;
+  --alert: #D98A06;
+  --alert-tint: #FDF0D5;
+  --good: #1E8E61;
+  --good-tint: #DAF1E7;
+  --road: #F8FAFB;
+  --explored: #FCEBE5;
+  --wall-bg: #CBD4DC;
+  --wall-line: #B1BDC8;
+  --on-accent: #FFFFFF;
+  --bad: #C93A3A;
+  --water: #CFE3F5;
+  --wave: #8DB6DD;
+  --bad-tint: #F9DEDE;
+  --trail: #13202E;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151C; --surface: #151F29; --surface-2: #1B2733; --ink: #E5ECF2; --muted: #93A3B3; --line: #2A3846;
+    --accent: #FF7A5C; --accent-tint: #3A231D; --detour: #74A0FF; --detour-tint: #1C2945;
+    --alert: #F5B43C; --alert-tint: #3A2E14; --good: #3CC48A; --good-tint: #15302A;
+    --road: #1A2530; --explored: #34241F; --wall-bg: #2C3946; --wall-line: #3E4D5C; --on-accent: #1A0E0A; --bad: #F06B6B; --bad-tint: #3B1C1E; --trail: #E5ECF2; --water: #16324A; --wave: #2F5F8A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151C; --surface: #151F29; --surface-2: #1B2733; --ink: #E5ECF2; --muted: #93A3B3; --line: #2A3846;
+  --accent: #FF7A5C; --accent-tint: #3A231D; --detour: #74A0FF; --detour-tint: #1C2945;
+  --alert: #F5B43C; --alert-tint: #3A2E14; --good: #3CC48A; --good-tint: #15302A;
+  --road: #1A2530; --explored: #34241F; --wall-bg: #2C3946; --wall-line: #3E4D5C; --on-accent: #1A0E0A; --bad: #F06B6B; --bad-tint: #3B1C1E; --trail: #E5ECF2; --water: #16324A; --wave: #2F5F8A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 24px 20px 40px; display: grid; gap: 18px; }
+
+header h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(26px, 3.4vw, 38px); letter-spacing: -0.015em; line-height: 1.1; margin: 0; text-wrap: balance; }
+.course { font: 600 12.5px var(--font-body); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.sub { color: var(--muted); margin: 8px 0 0; max-width: 72ch; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; font-size: 13.5px; }
+.flow .step { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+.flow .step b { font-family: var(--font-display); }
+.flow .arrow { color: var(--muted); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; justify-content: space-between; }
+.control-group { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.control-label { font: 600 12px var(--font-body); color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--surface-2); gap: 2px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.seg input:checked + label { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.10); }
+.seg input:focus-visible + label { outline: 2px solid var(--detour); outline-offset: 1px; }
+
+.btn { font: 600 14px var(--font-body); padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); min-width: 112px; }
+.btn:focus-visible { outline: 2px solid var(--detour); outline-offset: 2px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+.map-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+.map-head h2 { font: 700 18px var(--font-display); margin: 0; }
+.phases { display: flex; flex-wrap: wrap; gap: 6px; }
+.phase { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.phase.done { color: var(--ink); }
+.phase.on { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+
+#map { width: 100%; height: auto; display: block; margin: 6px auto 0; user-select: none; }
+#map text { pointer-events: none; }
+.cell { fill: var(--road); stroke: var(--line); stroke-width: 1; cursor: pointer; }
+.cell:hover { stroke: var(--muted); }
+.cell.explored { fill: var(--explored); }
+.cell.wall { fill: url(#hatch); stroke: var(--wall-line); }
+.cell.bridge-alert { fill: var(--alert-tint); stroke: var(--alert); stroke-width: 2.5; }
+.cell.bridge-clear { fill: var(--good-tint); stroke: var(--good); stroke-width: 2; }
+.cell.frontier { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; }
+.cell.current { stroke: var(--ink); stroke-width: 3; }
+.hatch-bg { fill: var(--wall-bg); }
+.hatch-line { stroke: var(--wall-line); }
+.axis { font: 500 12px var(--font-mono); fill: var(--muted); }
+.gh { font: 500 10px var(--font-mono); fill: var(--muted); }
+.fval { font: 600 11px var(--font-mono); fill: var(--ink); }
+.closed { font: 600 10px var(--font-body); fill: var(--ink); opacity: 0.7; letter-spacing: 0.04em; }
+.rail { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; opacity: 0.55; }
+.warn { fill: var(--alert); }
+.warn-mark { font: 700 11px var(--font-body); fill: var(--on-accent); }
+.route { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.route.faded { opacity: 0.28; }
+.detour { fill: none; stroke: var(--detour); stroke-width: 4.5; stroke-dasharray: 1 10; stroke-linecap: round; stroke-linejoin: round; }
+.detour.ghost { opacity: 0.45; }
+.detour.taken { stroke-dasharray: none; stroke-width: 6; }
+.icon-body { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.icon-fill { fill: var(--ink); }
+.icon-accent { fill: var(--accent); }
+.icon-label { font: 600 10px var(--font-body); fill: var(--ink); }
+.courier-ring { fill: var(--ink); }
+.courier-box { fill: var(--accent); }
+#courier { transition: transform 0.38s ease; }
+@media (prefers-reduced-motion: reduce) { #courier { transition: none; } }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); margin-top: 10px; justify-content: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 18px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid var(--line); }
+.sw.line { height: 0; border: 0; border-top: 4px solid var(--accent); border-radius: 2px; }
+.sw.dash { height: 0; border: 0; border-top: 4px dotted var(--detour); }
+
+.edit { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.edit .hint { font-size: 13px; color: var(--muted); }
+.notice { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--alert-tint); font-size: 14px; display: none; }
+.notice.show { display: block; }
+
+.strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile .v { font: 700 22px var(--font-display); font-variant-numeric: tabular-nums; line-height: 1.25; }
+.tile .s { font-size: 12.5px; color: var(--muted); }
+
+.pill { display: inline-block; font: 700 13px var(--font-body); letter-spacing: 0.05em; padding: 3px 10px; border-radius: 999px; }
+.pill.reroute { background: var(--detour-tint); color: var(--detour); }
+.pill.continue { background: var(--good-tint); color: var(--good); }
+.tile .pill { font-size: 15px; margin-top: 3px; }
+
+.algos { display: grid; gap: 14px; }
+.algo-head { display: flex; align-items: center; gap: 10px; }
+.algo-head h2 { font: 700 18px var(--font-display); margin: 0; }
+.algo-head .tag { margin-left: auto; font-size: 12.5px; color: var(--muted); text-align: right; }
+.num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--ink); color: var(--surface); font: 700 14px var(--font-display); flex: none; }
+.lbl { font: 600 11.5px var(--font-body); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin: 14px 0 5px; }
+.calc { font: 12.5px/1.65 var(--font-mono); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; overflow-x: auto; white-space: pre; margin: 0; }
+.out { font-size: 15px; font-weight: 500; }
+.out b { font-family: var(--font-display); }
+.why { font-size: 14px; border-left: 3px solid var(--accent); padding: 2px 0 2px 10px; margin-top: 12px; }
+.wait { display: none; font-size: 13px; color: var(--muted); margin-top: 8px; font-style: italic; }
+.pending .body { opacity: 0.32; filter: grayscale(0.7); }
+.pending .wait { display: block; }
+
+.trace-wrap { max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.trace { font: 12.5px var(--font-mono); }
+.trace th, .q th { position: sticky; top: 0; background: var(--surface); font: 600 11.5px var(--font-body); color: var(--muted); text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.trace td, .q td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+.trace th:nth-child(2), .trace td:nth-child(2), .q th:nth-child(-n+3), .q td:nth-child(-n+3) { text-align: left; }
+.trace tr.cur td { background: var(--accent-tint); font-weight: 600; }
+.trace tr.goal td { color: var(--accent); font-weight: 600; }
+.q { font: 12.5px var(--font-mono); }
+.q tr.win td { font-weight: 600; }
+.q td.qv { color: var(--ink); }
+
+.sliders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
+.sliders.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 560px) { .sliders, .sliders.two { grid-template-columns: 1fr; } }
+.slider { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.slider output { font: 600 13px var(--font-mono); color: var(--ink); }
+.slider input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 4px 0 0; }
+
+.bars { display: grid; gap: 8px; }
+.barrow { display: grid; grid-template-columns: 116px 1fr 62px; gap: 10px; align-items: center; font-size: 13px; }
+.barrow .val { font: 600 13px var(--font-mono); text-align: right; }
+.track { position: relative; height: 20px; background: var(--surface-2); border-radius: 6px; }
+.fill { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: var(--muted); }
+.fill.post { background: var(--alert); }
+.fill.cont { background: var(--good); }
+.fill.rer { background: var(--detour); }
+.fill.dim { opacity: 0.4; }
+.fill.assist { background: var(--accent); }
+.tmark { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--detour); }
+.tnote { font-size: 12px; color: var(--detour); margin-left: 126px; }
+.zero { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--muted); }
+
+.eval-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.eval-head h2 { font: 700 18px var(--font-display); margin: 0; }
+.eval-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.eval-scroll { overflow-x: auto; margin-top: 12px; }
+.evaltab { min-width: 640px; font-size: 14px; }
+.evaltab th { font: 600 11.5px var(--font-body); color: var(--muted); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); letter-spacing: 0.03em; }
+.evaltab td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--font-mono); font-size: 13px; }
+.evaltab th:first-child, .evaltab td:first-child { text-align: left; font-family: var(--font-body); font-size: 14px; }
+.evaltab th:nth-child(2), .evaltab td:nth-child(2) { width: 34%; }
+.evaltab tr.best td:first-child { font-weight: 600; }
+.conclusion { margin: 12px 0 0; font-size: 15px; max-width: 80ch; }
+
+
+.controls { display: grid; gap: 14px; justify-content: stretch; }
+.controls .row { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.keys { font-size: 12.5px; color: var(--muted); }
+kbd { font: 600 11.5px var(--font-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; background: var(--surface-2); color: var(--ink); }
+.leftcol { display: grid; gap: 18px; min-width: 0; }
+.caption { display: grid; gap: 8px; padding: 16px 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--accent); min-height: 128px; align-content: start; }
+.caption .count { font: 600 12px var(--font-mono); color: var(--muted); white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase; }
+.caption .text { font-size: 17px; line-height: 1.5; }
+.caption.bad { border-left-color: var(--bad); }
+.caption.good { border-left-color: var(--good); }
+.cell.revealed-blocked { fill: var(--bad-tint); stroke: var(--bad); stroke-width: 2.5; }
+.cell.revealed-clear { fill: var(--good-tint); stroke: var(--good); stroke-width: 2.5; }
+.xmark { stroke: var(--bad); stroke-width: 5; stroke-linecap: round; }
+.check { fill: none; stroke: var(--good); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.trail { fill: none; stroke: var(--trail); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 0.1 7; }
+.bfsdot { fill: var(--detour); opacity: 0.85; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; margin-top: 10px; }
+.toggle input { accent-color: var(--detour); width: 16px; height: 16px; }
+.dmap svg { width: 100%; height: auto; display: block; }
+.dmap .c-rer { fill: var(--detour-tint); }
+.dmap .c-con { fill: var(--good-tint); }
+.dmap .tick { font: 500 11px var(--font-mono); fill: var(--muted); }
+.dmap .axl { font: 600 11.5px var(--font-body); fill: var(--muted); }
+.dmap .lab { font: 700 13px var(--font-display); }
+.dmap .lab.rer { fill: var(--detour); }
+.dmap .lab.con { fill: var(--good); }
+.dmap .me { fill: var(--accent); stroke: var(--surface); stroke-width: 2.5; }
+.dmap .me-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+.dmap .boundary { fill: none; stroke: var(--ink); stroke-width: 1.5; opacity: 0.55; }
+.dmap-note { font-size: 14px; margin: 10px 0 0; }
+.sw.trailsw { height: 0; border: 0; border-top: 3px dotted var(--trail); }
+.sw.bfssw { width: 8px; height: 8px; border-radius: 50%; background: var(--detour); border: 0; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 1080px) { .stage { grid-template-columns: 1fr; } }
+.side { display: grid; gap: 18px; min-width: 0; }
+@media (min-width: 1081px) { .side { position: sticky; top: 16px; } }
+.algos3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+@media (max-width: 1200px) { .algos3 { grid-template-columns: 1fr; } }
+.algos3 .sliders { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.map-card { padding: 18px 20px 20px; }
+.map-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 20px; }
+.map-top h2 { font: 800 22px var(--font-display); margin: 0; letter-spacing: -0.01em; }
+.clock { display: flex; gap: 18px; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.clock .t { font: 700 30px/1 var(--font-mono); letter-spacing: -0.02em; }
+.clock .k { font: 600 11px var(--font-body); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+.clock .eta .t { font-size: 20px; color: var(--muted); }
+.clock .eta.late .t { color: var(--bad); }
+.phases { margin-top: 10px; }
+.cell.water { fill: var(--water); stroke: var(--water); cursor: pointer; }
+.wave { fill: none; stroke: var(--wave); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+#map.big .gh { font-size: 12.5px; }
+#map.big .fval { font-size: 13px; }
+#map.big .closed { font-size: 11px; }
+.road { stroke: var(--line); stroke-width: 2; stroke-linecap: round; opacity: 0.75; }
+.courier-halo { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.scooter { fill: var(--ink); }
+.bag { fill: var(--accent); stroke: var(--ink); stroke-width: 1.5; }
+.rider { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.bar { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+#courier { transition: transform 0.3s ease-in-out; }
+#courier-body { transform-box: fill-box; transform-origin: center; transition: transform 0.25s ease; }
+.ping { fill: none; stroke: var(--alert); stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: ping 1.2s ease-out infinite; }
+.ping.bad { stroke: var(--bad); }
+@keyframes ping { from { transform: scale(0.4); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.burst { fill: none; stroke: var(--good); stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: burst 1.4s ease-out 2; }
+@keyframes burst { from { transform: scale(0.3); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+.badge-bg { fill: var(--good); }
+.badge-tx { font: 700 12px var(--font-body); fill: var(--on-accent); letter-spacing: 0.04em; }
+@media (prefers-reduced-motion: reduce) { #courier, #courier-body { transition: none; } .ping, .burst { animation: none; } }
+
+.shift-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 18px; }
+.shift-head h2 { font: 700 20px var(--font-display); margin: 0; }
+.shift-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.shift-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 18px; margin-top: 16px; align-items: start; }
+@media (max-width: 900px) { .shift-body { grid-template-columns: 1fr; } }
+.shift-chart svg { width: 100%; height: auto; display: block; }
+.shift-chart .grid { stroke: var(--line); }
+.shift-chart .tick { font: 500 11px var(--font-mono); fill: var(--muted); }
+.shift-chart .axl { font: 600 11.5px var(--font-body); fill: var(--muted); }
+.shift-chart .exp { stroke-width: 1.5; stroke-dasharray: 5 5; opacity: 0.8; }
+.shift-chart .run { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
+.shift-chart .lab { font: 600 12px var(--font-body); }
+.k-cont { stroke: var(--good); fill: var(--good); }
+.k-rer { stroke: var(--detour); fill: var(--detour); }
+.k-ast { stroke: var(--accent); fill: var(--accent); }
+.board { display: grid; gap: 10px; }
+.brow { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border-left: 5px solid var(--muted); }
+.brow.cont { border-left-color: var(--good); }
+.brow.rer { border-left-color: var(--detour); }
+.brow.ast { border-left-color: var(--accent); }
+.brow.win { outline: 2px solid var(--accent); outline-offset: 1px; }
+.brow .name { font-weight: 600; }
+.brow .big { font: 700 24px var(--font-display); font-variant-numeric: tabular-nums; text-align: right; grid-row: span 2; align-self: center; }
+.brow .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.counter { font: 600 13px var(--font-mono); color: var(--muted); }
+.ribbon-wrap { margin-top: 16px; }
+.ribbon { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px; min-height: 14px; }
+.ribbon i { width: 11px; height: 14px; border-radius: 3px; display: block; }
+.ribbon i.over { background: var(--good); }
+.ribbon i.det { background: var(--detour); }
+.ribbon i.stk { background: var(--bad); }
+.ribbon i.alert { box-shadow: inset 0 3px 0 var(--alert); }
+.rlegend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.rlegend span { display: inline-flex; align-items: center; gap: 6px; }
+.rlegend i { width: 11px; height: 14px; border-radius: 3px; display: inline-block; }
+.shift-note { margin: 14px 0 0; font-size: 15px; max-width: 90ch; }
+
+footer { font-size: 13px; color: var(--muted); max-width: 90ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="course">AI Fundamentals · Final Project · Topic 20</div>
+  <h1>Mini Food Delivery Assistant</h1>
+  <p class="sub">A courier is taking an order from the restaurant to a customer across the city: the 6×6 neighbourhood from the project brief, or a larger 10×10 or 14×14 map with a river and several bridges. The traffic service reports on the bridge along the route, before departure or while the courier is already driving. Three algorithms decide what the courier should do, and then you see what really happened on the road.</p>
+  <div class="flow" aria-label="How the three algorithms connect">
+    <span class="step"><b>A*</b> finds the route and the detour</span><span class="arrow">→</span>
+    <span class="step"><b>Bayes</b> estimates if the bridge is blocked</span><span class="arrow">→</span>
+    <span class="step"><b>MDP</b> chooses continue or reroute</span>
+  </div>
+</header>
+
+<section class="card controls" aria-label="Controls">
+  <div class="row">
+    <div class="control-group">
+      <span class="control-label" id="size-label">Map</span>
+      <div class="seg" role="radiogroup" aria-labelledby="size-label">
+        <input type="radio" name="size" id="size-6" value="6x6" checked><label for="size-6">6×6</label>
+        <input type="radio" name="size" id="size-10" value="10x10"><label for="size-10">10×10</label>
+        <input type="radio" name="size" id="size-14" value="14x14"><label for="size-14">14×14</label>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="obs-label">Traffic report</span>
+      <div class="seg" role="radiogroup" aria-labelledby="obs-label">
+        <input type="radio" name="obs" id="obs-alert" value="ALERT" checked><label for="obs-alert">Alert on the bridge</label>
+        <input type="radio" name="obs" id="obs-quiet" value="NO ALERT"><label for="obs-quiet">No alert</label>
+        <input type="radio" name="obs" id="obs-none" value="NONE"><label for="obs-none">No report</label>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="timing-label">Report arrives</span>
+      <div class="seg" role="radiogroup" aria-labelledby="timing-label">
+        <input type="radio" name="timing" id="timing-depart" value="depart" checked><label for="timing-depart">Before departure</label>
+        <input type="radio" name="timing" id="timing-way" value="way"><label for="timing-way">On the way</label>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="truth-label">Bridge really is</span>
+      <div class="seg" role="radiogroup" aria-labelledby="truth-label">
+        <input type="radio" name="truth" id="truth-random" value="random" checked><label for="truth-random">Random</label>
+        <input type="radio" name="truth" id="truth-blocked" value="blocked"><label for="truth-blocked">Blocked</label>
+        <input type="radio" name="truth" id="truth-clear" value="clear"><label for="truth-clear">Clear</label>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="control-group">
+      <button class="btn primary" id="play" type="button">Play demo</button>
+      <button class="btn" id="step" type="button">Next step</button>
+      <button class="btn" id="skip" type="button">Show result</button>
+      <span class="control-label" id="speed-label">Speed</span>
+      <div class="seg" role="radiogroup" aria-labelledby="speed-label">
+        <input type="radio" name="speed" id="speed-slow" value="0.5"><label for="speed-slow">0.5×</label>
+        <input type="radio" name="speed" id="speed-normal" value="1" checked><label for="speed-normal">1×</label>
+        <input type="radio" name="speed" id="speed-fast" value="2"><label for="speed-fast">2×</label>
+      </div>
+    </div>
+    <span class="keys"><kbd>Space</kbd> play or pause · <kbd>→</kbd> next step</span>
+  </div>
+</section>
+
+<main class="stage">
+  <section class="card map-card" aria-label="Neighbourhood map">
+    <div class="map-top">
+      <h2>Neighbourhood map</h2>
+      <div class="clock" aria-live="off">
+        <div><div class="k">Clock</div><div class="t" id="clock-now">18:00</div></div>
+        <div class="eta" id="eta-box"><div class="k">Delivery ETA</div><div class="t" id="clock-eta">--:--</div></div>
+      </div>
+    </div>
+    <div class="phases" id="phases"></div>
+    <svg id="map" viewBox="0 0 470 470" role="group" aria-label="Neighbourhood map. Click a cell to edit it.">
+      <defs>
+        <pattern id="hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect class="hatch-bg" width="9" height="9"></rect>
+          <line class="hatch-line" x1="0" y1="0" x2="0" y2="9" stroke-width="4"></line>
+        </pattern>
+      </defs>
+      <g id="layer"></g>
+      <g id="courier" aria-label="Courier">
+        <g id="courier-body">
+          <circle class="courier-halo" r="17"></circle>
+          <rect class="bag" x="-12" y="-7.5" width="11" height="15" rx="2.5"></rect>
+          <rect class="scooter" x="-2" y="-3.5" width="12" height="7" rx="3.5"></rect>
+          <line class="bar" x1="9" y1="-7" x2="9" y2="7"></line>
+          <circle class="rider" cx="2" cy="0" r="4.5"></circle>
+        </g>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="sw line"></i>Shortest route (A*)</span>
+      <span><i class="sw dash"></i>Detour around the bridge</span>
+      <span><i class="sw" style="background:var(--explored)"></i>Cells A* expanded</span>
+      <span><i class="sw" style="background:url(#hatch);background:var(--wall-bg)"></i>Closed road</span>
+      <span><i class="sw" style="background:var(--alert-tint);border-color:var(--alert)"></i>Bridge with alert</span>
+      <span><i class="sw trailsw"></i>Where the courier drove</span>
+      <span><i class="sw" style="background:var(--water);border-color:var(--water)"></i>River</span>
+      <span id="bfs-legend" hidden><i class="sw bfssw"></i>Cells BFS expanded</span>
+    </div>
+    <div class="notice" id="notice" role="status"></div>
+    <div class="edit">
+      <span class="control-label" id="tool-label">Edit map</span>
+      <div class="seg" role="radiogroup" aria-labelledby="tool-label">
+        <input type="radio" name="tool" id="tool-wall" value="wall" checked><label for="tool-wall">Close / open road</label>
+        <input type="radio" name="tool" id="tool-start" value="start"><label for="tool-start">Restaurant</label>
+        <input type="radio" name="tool" id="tool-goal" value="goal"><label for="tool-goal">Customer</label>
+        <input type="radio" name="tool" id="tool-bridge" value="bridge"><label for="tool-bridge">Bridge</label>
+      </div>
+      <button class="btn" id="reset-map" type="button">Reset map</button>
+      <button class="btn" id="random-map" type="button">Random map</button>
+      <span class="hint">Pick a tool, then click a cell.</span>
+    </div>
+  </section>
+
+  <div class="side">
+    <div class="caption" id="caption" aria-live="polite"><span class="count" id="caption-count"></span><span class="text" id="caption-text"></span></div>
+    <div class="strip" id="strip"></div>
+    <section class="card dmap" aria-label="Decision map">
+      <div class="algo-head"><h2>Decision map</h2><span class="tag">MDP choice for every risk and detour</span></div>
+      <div id="dmap"></div>
+      <p class="dmap-note" id="dmap-note"></p>
+    </section>
+  </div>
+</main>
+
+<section class="algos3" aria-label="The three algorithms">
+    <article class="card" id="card-astar">
+      <div class="algo-head"><span class="num">1</span><h2>A* search</h2><span class="tag">Shortest route on the grid</span></div>
+      <div class="lbl">Input</div>
+      <div id="astar-input"></div>
+      <div class="lbl">Steps · cells in the order A* expanded them</div>
+      <div class="trace-wrap" id="trace-wrap">
+        <table class="trace"><thead><tr><th>#</th><th>cell</th><th>g</th><th>h</th><th>f = g + h</th></tr></thead><tbody id="trace"></tbody></table>
+      </div>
+      <div class="lbl">Output</div>
+      <div class="out" id="astar-out"></div>
+      <label class="toggle" for="bfs-toggle"><input type="checkbox" id="bfs-toggle"> Compare with BFS on the map</label>
+      <div class="why" id="astar-why"></div>
+    </article>
+
+    <article class="card" id="card-bayes">
+      <div class="algo-head"><span class="num">2</span><h2>Bayesian inference</h2><span class="tag">Is the bridge really blocked?</span></div>
+      <div class="wait">Runs when the traffic report arrives.</div>
+      <div class="body">
+        <div class="lbl">Input</div>
+        <div class="sliders">
+          <div class="slider"><label for="prior">Prior P(blocked)</label><output id="prior-o"></output><input type="range" id="prior" min="0.01" max="0.6" step="0.01"></div>
+          <div class="slider"><label for="hit">P(alert | blocked)</label><output id="hit-o"></output><input type="range" id="hit" min="0.5" max="0.99" step="0.01"></div>
+          <div class="slider"><label for="fa">P(alert | clear)</label><output id="fa-o"></output><input type="range" id="fa" min="0.01" max="0.5" step="0.01"></div>
+        </div>
+        <div class="lbl">Steps</div>
+        <pre class="calc" id="bayes-calc"></pre>
+        <div class="lbl">Output</div>
+        <div class="bars" id="bayes-bars"></div>
+        <div class="why" id="bayes-why"></div>
+      </div>
+    </article>
+
+    <article class="card" id="card-mdp">
+      <div class="algo-head"><span class="num">3</span><h2>MDP decision</h2><span class="tag">Continue or reroute?</span></div>
+      <div class="wait">Runs after the risk is known.</div>
+      <div class="body" id="mdp-body"></div>
+      <div class="sliders two" id="mdp-sliders">
+        <div class="slider"><label for="penalty">Cost per extra block</label><output id="penalty-o"></output><input type="range" id="penalty" min="0" max="6" step="0.5"></div>
+        <div class="slider"><label for="gamma">Discount γ</label><output id="gamma-o"></output><input type="range" id="gamma" min="0" max="0.99" step="0.01"></div>
+      </div>
+    </article>
+</section>
+
+<section class="card" aria-label="Evening shift">
+  <div class="shift-head">
+    <div>
+      <h2>Evening shift: watch the three strategies compete</h2>
+      <p>One delivery after another on this map. Each time the bridge is randomly blocked or clear, the traffic service reports with its usual errors, and all three strategies decide from the same report.</p>
+    </div>
+    <div class="control-group">
+      <span class="control-label" id="shiftn-label">Deliveries</span>
+      <div class="seg" role="radiogroup" aria-labelledby="shiftn-label">
+        <input type="radio" name="shiftn" id="shiftn-50" value="50"><label for="shiftn-50">50</label>
+        <input type="radio" name="shiftn" id="shiftn-100" value="100" checked><label for="shiftn-100">100</label>
+        <input type="radio" name="shiftn" id="shiftn-300" value="300"><label for="shiftn-300">300</label>
+      </div>
+      <button class="btn primary" id="shift-run" type="button">Run the shift</button>
+    </div>
+  </div>
+  <div id="shift-area"></div>
+</section>
+
+<section class="card" aria-label="Evaluation">
+  <div class="eval-head">
+    <h2>Does the assistant help? 10,000 simulated evening deliveries</h2>
+    <p>Each run: the bridge is blocked with the prior probability, the alert service reports with its error rates, the policy decides before departure.</p>
+  </div>
+  <div id="eval"></div>
+</section>
+
+<footer>
+  All probabilities, rewards and the map are assumptions made for this demonstration, not real data. Cells are written (row, column) and match the Python program <code>food_delivery.py</code>, which prints the same numbers in the console.
+</footer>
+</div>
+
+<script>
+/*LOGIC*/
+</script>
+<script>
+/*UI*/
+</script>
+</body>
+</html>
